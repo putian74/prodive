@@ -1,0 +1,13 @@
+key,path,file_stem,xlim_min,xlim_max,ylim_min,ylim_max,show_rmsd_lines,show_core_box,show_band_percentages,show_broad_count,title
+prodive_only_20,data/fig2_inputs/prodive_only_rmsd_standard.csv,fig2A_prodive_only_20,0,30,0,6,true,true,true,true,
+shared_prodive_20,data/fig2_inputs/shared_prodive_boundary_rmsd_prob20.csv,fig2B_shared_prodive_boundary_20,0,30,0,6,true,true,true,true,
+shared_hh_20,data/fig2_inputs/shared_hhsearch_boundary_rmsd_prob20.csv,fig2C_shared_hhsearch_boundary_20,0,30,0,6,true,true,true,true,
+hhsearch_only_20,data/fig2_inputs/hhsearch_only_rmsd_prob20.csv,fig2D_hhsearch_only_20,0,30,0,6,true,true,true,true,
+shared_prodive_70,data/fig2_inputs/shared_prodive_boundary_rmsd_prob70.csv,fig2E_shared_prodive_boundary_70,0,30,0,6,true,true,true,true,
+shared_hh_70,data/fig2_inputs/shared_hhsearch_boundary_rmsd_prob70.csv,fig2F_shared_hhsearch_boundary_70,0,30,0,6,true,true,true,true,
+hhsearch_only_70,data/fig2_inputs/hhsearch_only_rmsd_prob70.csv,fig2G_hhsearch_only_70,0,30,0,6,true,true,true,true,
+denovo_pfam,data/fig2_inputs/denovo_vs_pfam_rmsd_results_with_coverage.csv,fig2H_denovo_pfam,0,30,0,6,true,true,true,true,
+shared_hh_20_full,data/fig2_inputs/shared_hhsearch_boundary_rmsd_prob20.csv,figS3_shared_hhsearch_boundary_prob20_fullrange,0,100,0,6,false,false,false,false,
+hhsearch_only_20_full,data/fig2_inputs/hhsearch_only_rmsd_prob20.csv,figS3_hhsearch_only_prob20_fullrange,0,100,0,6,false,false,false,false,
+shared_hh_70_full,data/fig2_inputs/shared_hhsearch_boundary_rmsd_prob70.csv,figS3_shared_hhsearch_boundary_prob70_fullrange,0,100,0,6,false,false,false,false,
+hhsearch_only_70_full,data/fig2_inputs/hhsearch_only_rmsd_prob70.csv,figS3_hhsearch_only_prob70_fullrange,0,100,0,6,false,false,false,false,
