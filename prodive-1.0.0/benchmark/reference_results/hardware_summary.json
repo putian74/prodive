@@ -1,0 +1,26 @@
+{
+  "benchmark_date_local": "2026-07-13",
+  "operating_system": "Ubuntu 22.04-compatible Linux",
+  "kernel": "5.15.0-179-generic",
+  "cpu_model": "Intel(R) Xeon(R) CPU E5-2696 v3 @ 2.30GHz",
+  "logical_cpu_count": 72,
+  "total_ram_bytes": 67375304704,
+  "gpus": {
+    "count": 2,
+    "model": "NVIDIA GeForce RTX 3090",
+    "memory_mib_each": 24576
+  },
+  "nvidia_driver": "535.309.01",
+  "nvidia_smi_cuda_version": "12.2",
+  "nvcc_version": "12.4.131",
+  "compiler": "g++ 11.4.0",
+  "python": "3.12.2",
+  "packages": {
+    "numpy": "1.26.4",
+    "pandas": "2.2.2",
+    "matplotlib": "3.9.2",
+    "numba": "0.61.0"
+  },
+  "monitor_interval_seconds": 0.2,
+  "identifiers_and_machine_paths_removed": true
+}

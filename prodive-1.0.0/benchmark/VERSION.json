@@ -1,0 +1,10 @@
+{
+  "bundle": "prodive-methods",
+  "version": "1.0.0",
+  "benchmark_revision": "2026-07-13-unified-modes-cpu-gpu-scaling",
+  "cpu_gpu_comparison_scope": "raw symmetric KL only",
+  "normalization_or_downstream_filtering_included_in_cpu_gpu_comparison": false,
+  "configuration_template": "benchmark/config.example.json",
+  "modes": ["gpu", "compare", "all"],
+  "one_command_entry": "bash benchmark/run_server_once.sh MODE"
+}

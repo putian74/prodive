@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.pytest_cache/
+*.egg-info/
+
+# C/C++/CUDA build artifacts
+*.o
+*.so
+*.a
+*.out
+kl_divergence
+
+# Logs
+*.log
+nohup.out
+
+# Machine-specific benchmark configuration and generated runs
+benchmark/config.json
+benchmark_output/
+prodive_benchmark_fragment*/
+
+# Generated ProDive outputs
+*.npy
+*.npz
+*.bin
+index.csv
+metadata.json
+summary.json
+failed_files.csv
+small_npy/
+results/
+debug/

@@ -1,0 +1,40 @@
+schema_version: 1
+
+fragment_model:
+  fragment_length_k: 6
+  state_count_expression: 3*k+1
+  normalization_factor_expression: 3*k+2
+  normalization_factor_at_k6: 20
+
+kl_filter:
+  rounded_raw_score_decimals: 4
+  raw_score_rule: raw4 < 2.0
+  raw_threshold: 2.0
+  raw_threshold_inclusive: false
+  epsilon: 0.0001
+  normalized_score_expression: (query_background[row] + target_background[col]) / (raw4 + epsilon) * (3*k + 2)
+  normalized_score_rule: linear >= 13.0
+  normalized_score_threshold: 13.0
+  saved_score_decimals: 4
+
+path_extraction:
+  coordinate_system: one_based_window_starts
+  minimum_path_points: 5
+  overlap_iou_threshold: 0.1
+  maximum_jump_distance_expression: k-1
+  length_extension_expression: k-1
+
+coverage_rescoring:
+  coverage_main_rule: Coverage_Main >= 0.85
+  coverage_sub_rule: Coverage_Sub >= 0.85
+  coverage_threshold: 0.85
+  coverage_weight_expression: (Coverage_Main + Coverage_Sub) / 2
+  final_score_expression: log10(Avg_Similarity * coverage_weight^2)
+  final_score_rule: Rescored_Score > 1.2
+  final_score_threshold: 1.2
+  missing_coverage_default: 0.0
+
+implementation:
+  filter_script: src/path_extraction/scripts/01_filter_cpp_kl_results.py
+  path_script: src/path_extraction/scripts/02_build_paths_from_filtered_pk.py
+  rescore_script: src/path_extraction/scripts/03_rescore_paths_by_coverage.py
