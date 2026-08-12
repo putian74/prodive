@@ -1,0 +1,19 @@
+{
+  "packed_database": "${PACKED_DB}",
+  "family_count": 25545,
+  "family_id_min": 0,
+  "family_id_max": 25544,
+  "sum_nfrag": 3969369,
+  "sum_squared_nfrag": 1070692759,
+  "unordered_pairs_excluding_self": 326260740,
+  "upper_triangle_pairs_including_self": 326286285,
+  "ordered_pairs_including_self": 652547025,
+  "window_cells_unordered_excluding_self": 7877409782701,
+  "window_cells_upper_triangle_including_self": 7878480475460,
+  "window_cells_ordered_including_self": 15755890258161,
+  "nfrag_min": 2,
+  "nfrag_median": 117.0,
+  "nfrag_p95": 393.0,
+  "nfrag_max": 2367,
+  "definition": "window_cells for pair (i,j) = nfrag_i * nfrag_j"
+}

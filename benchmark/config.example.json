@@ -1,0 +1,144 @@
+{
+  "_instructions": [
+    "Copy this file to benchmark/config.json and replace every /path/to placeholder.",
+    "mapping_file is read from metadata.json when AUTO_FROM_PACKED_METADATA is used.",
+    "Set background_json and coverage_dir before running end-to-end mode.",
+    "Set gpu_device_ids and gpu_counts to the GPUs that are reserved exclusively for this benchmark.",
+    "CPU/GPU validation compares only raw symmetric KL on the same bounded sample; it does not apply (3*fragment+2) or any downstream filter.",
+    "All original ProDive C++ and Python input/output formats remain unchanged.",
+    "Use run_server_once.sh gpu, compare, or all; completed validated runs are reused."
+  ],
+  "repo_root": "..",
+  "packed_db": "/path/to/kl_fragment_6_packed",
+  "cpp_executable": "src/cpp_cuda/kl_divergence",
+  "mapping_file": "AUTO_FROM_PACKED_METADATA",
+  "background_json": "/path/to/background_kl_fragment_6.json",
+  "coverage_dir": "/path/to/coverage_tables",
+  "output_root": "/path/to/prodive_benchmark_fragment6",
+  "sampling": {
+    "seed": 20260712,
+    "pair_counts": [
+      500,
+      2000,
+      10000
+    ],
+    "candidate_pool_size": 500000,
+    "workload_strata": 5,
+    "exclude_self_pairs": true
+  },
+  "core": {
+    "pair_counts": [
+      500,
+      2000,
+      10000
+    ],
+    "gpu_device_ids": [
+      0,
+      1
+    ],
+    "gpu_counts": [
+      1,
+      2
+    ],
+    "repeats": 3,
+    "randomize_run_order": true,
+    "num_streams": 8,
+    "memory_efficient": true,
+    "full_family_coverage": {
+      "enabled": true,
+      "gpu_counts": [
+        2
+      ],
+      "repeats": 1
+    },
+    "timeout_seconds": null
+  },
+  "cpu_gpu_validation": {
+    "enabled": true,
+    "pair_count": 5,
+    "source_pair_count": 500,
+    "max_window_cells_per_pair": 10000,
+    "gpu_count": 1,
+    "repeats": 1,
+    "num_streams": 8,
+    "memory_efficient": true,
+    "acids_number": 21,
+    "dtype": "float32",
+    "require_numba": true,
+    "rtol": 0.0001,
+    "atol": 0.00001,
+    "max_mismatch_fraction": 0.01,
+    "min_pearson_r": 0.999,
+    "fail_on_tolerance": false,
+    "keep_raw_matrices_after_comparison": true,
+    "gpu_timeout_seconds": null,
+    "cpu_timeout_seconds": null
+  },
+  "cpu_gpu_comparison": {
+    "enabled": true,
+    "pair_counts": [
+      20,
+      50,
+      100,
+      200,
+      500
+    ],
+    "gpu_counts": [
+      1,
+      2
+    ],
+    "cpu_process_counts": [
+      1
+    ],
+    "repeats": 3,
+    "randomize_run_order": true,
+    "acids_number": 21,
+    "dtype": "float32",
+    "require_numba": true,
+    "save_cpu_matrices_during_run": true,
+    "cpu_timeout_seconds": null,
+    "parallel_scaling": {
+      "enabled": true,
+      "pair_count": 500,
+      "process_counts": [
+        1,
+        2,
+        4,
+        8,
+        16
+      ]
+    }
+  },
+  "end_to_end": {
+    "enabled": true,
+    "pair_count": 10000,
+    "gpu_count": 2,
+    "repeats": 3,
+    "num_streams": 8,
+    "path_workers": 20,
+    "path_strict": true,
+    "make_score_distribution_plot": true,
+    "timeout_seconds_per_stage": null
+  },
+  "thresholds": {
+    "fragment": 6,
+    "raw_threshold": 2.0,
+    "filter_threshold": 13.0,
+    "epsilon": 0.0001,
+    "row_block_size": 1024,
+    "min_path_points": 5,
+    "overlap_iou_threshold": 0.1,
+    "coverage_threshold": 0.85,
+    "score_threshold": 1.2,
+    "missing_coverage_default": 0.0
+  },
+  "monitor": {
+    "interval_seconds": 0.2
+  },
+  "cleanup": {
+    "core_cpp_matrices_after_success": true,
+    "comparison_cpu_matrices_after_success": true,
+    "end_to_end_cpp_matrices_after_success": true,
+    "end_to_end_filtered_pickles_after_success": true
+  }
+}
