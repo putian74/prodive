@@ -1,6 +1,0 @@
-label,path
-Top_05,$PRODIVE_DATA_ROOT/shared/score_percentile_subsets/subset_data_Top_05%.csv
-Top_10,$PRODIVE_DATA_ROOT/shared/score_percentile_subsets/subset_data_Top_10%.csv
-Top_20,$PRODIVE_DATA_ROOT/shared/score_percentile_subsets/subset_data_Top_20%.csv
-Top_50,$PRODIVE_DATA_ROOT/shared/score_percentile_subsets/subset_data_Top_50%.csv
-Top_100,$PRODIVE_DATA_ROOT/shared/score_percentile_subsets/subset_data_Top_100%.csv

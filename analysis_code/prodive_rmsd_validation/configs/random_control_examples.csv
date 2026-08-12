@@ -1,3 +1,0 @@
-analysis_key,real_csv,random_csv,output_stats_csv,output_plot,ttest_csv,real_label,random_label
-prodive_only,/path/to/prodive_only_rmsd_standard.csv,/path/to/random_pfam_pfam_25k_coverage80.csv,/path/to/prodive_only_real_random_stats.csv,/path/to/prodive_only_real_random_boxplot.png,/path/to/prodive_only_real_random_ttest.csv,Real signal,Random noise
-denovo_pfam,/path/to/denovo_vs_pfam_rmsd_results_with_coverage.csv,/path/to/random_denovo_pfam_10k_coverage80.csv,/path/to/denovo_pfam_real_random_stats.csv,/path/to/denovo_pfam_real_random_boxplot.png,/path/to/denovo_pfam_real_random_ttest.csv,Real signal,Random noise

@@ -1,6 +1,0 @@
-pandas
-numpy
-networkx
-scikit-learn
-tqdm
-python-igraph
