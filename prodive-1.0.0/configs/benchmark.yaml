@@ -1,0 +1,66 @@
+schema_version: 1
+scope: computational_performance_and_numerical_validation
+
+sampling:
+  seed: 20260712
+  unit: unordered_nonself_family_pair
+  workload: nfrag_i_times_nfrag_j_matrix_cells
+  candidate_pool_size: 500000
+  workload_strata: 5
+  nested_pair_lists: true
+
+gpu_core:
+  pair_counts: [500, 2000, 10000]
+  gpu_counts: [1, 2]
+  repeats: 3
+  full_family_coverage_sample:
+    enabled: true
+    pair_count: 12773
+    family_count: 25545
+    repeats: 1
+
+cpu_gpu_numerical_validation:
+  scope: raw_symmetric_kl_only
+  pair_count: 5
+  maximum_window_cells_per_pair: 10000
+  rtol: 0.0001
+  atol: 0.00001
+  maximum_mismatch_fraction: 0.01
+  minimum_pearson_r: 0.999
+  excluded_steps:
+    - background_normalization
+    - thresholding
+    - path_construction
+    - coverage_rescoring
+
+packed_input_cpu_gpu_scaling:
+  pair_counts: [20, 50, 100, 200, 500]
+  gpu_counts: [1, 2]
+  single_process_cpu_repeats: 3
+  cpu_process_scaling:
+    pair_count: 500
+    process_counts: [1, 2, 4, 8, 16]
+  numerical_library_threads_per_cpu_process: 1
+
+end_to_end:
+  pair_count: 10000
+  gpu_count: 2
+  repeats: 3
+  timed_start: packed_fragment_database
+  timed_end: final_rescored_path_table
+  excluded_preprocessing:
+    - HHM_parsing
+    - packed_database_construction
+    - HHsearch
+    - RMSD_calculation
+
+monitoring:
+  external_wall_time: true
+  process_tree_peak_rss: true
+  nvidia_smi_interval_seconds: 0.2
+  report_pairs_per_second: true
+  report_matrix_cells_per_second: true
+
+interpretation:
+  summarize_repeats_with: median_and_interquartile_range
+  full_scale_duration_status: projection_not_measurement

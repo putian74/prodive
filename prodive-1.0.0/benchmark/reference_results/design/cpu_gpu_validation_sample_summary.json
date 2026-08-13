@@ -1,0 +1,19 @@
+{
+  "enabled": true,
+  "purpose": "CPU/GPU correctness and serial-CPU resource comparison on raw symmetric KL only",
+  "pair_list": "${BENCHMARK_OUTPUT_ROOT}/design/pair_lists/pairs_cpu_gpu_validation.csv",
+  "pair_count": 5,
+  "source_pair_count": 500,
+  "max_window_cells_per_pair_limit": 10000,
+  "unique_families": 10,
+  "total_window_cells": 27733,
+  "min_window_cells_per_pair": 1953,
+  "median_window_cells_per_pair": 4400.0,
+  "max_window_cells_per_pair": 9568,
+  "workload_strata_observed": [
+    "Q1",
+    "Q2"
+  ],
+  "raw_kl_only": true,
+  "normalization_or_background_filtering_included": false
+}
