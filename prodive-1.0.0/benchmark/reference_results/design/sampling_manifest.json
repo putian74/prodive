@@ -1,0 +1,233 @@
+{
+  "created_at_local_time": "2026-07-13 14:16:24 +0800",
+  "seed": 20260712,
+  "sampling_unit": "unordered non-self family pair (i < j)",
+  "sampling_method": "Uniform random candidate pairs, stratified into candidate-pool quantiles by nfrag_i*nfrag_j, then interleaved so every pair-list prefix is balanced across strata.",
+  "candidate_pool_size": 500000,
+  "workload_strata": 5,
+  "stratum_descriptions": [
+    {
+      "stratum": 1,
+      "label": "Q1",
+      "candidate_count": 100000,
+      "min_window_cells": 28,
+      "max_window_cells": 6018,
+      "median_window_cells": 3818.0
+    },
+    {
+      "stratum": 2,
+      "label": "Q2",
+      "candidate_count": 100000,
+      "min_window_cells": 6018,
+      "max_window_cells": 10900,
+      "median_window_cells": 8280.0
+    },
+    {
+      "stratum": 3,
+      "label": "Q3",
+      "candidate_count": 100000,
+      "min_window_cells": 10900,
+      "max_window_cells": 18212,
+      "median_window_cells": 14060.0
+    },
+    {
+      "stratum": 4,
+      "label": "Q4",
+      "candidate_count": 100000,
+      "min_window_cells": 18212,
+      "max_window_cells": 33338,
+      "median_window_cells": 24034.0
+    },
+    {
+      "stratum": 5,
+      "label": "Q5",
+      "candidate_count": 100000,
+      "min_window_cells": 33341,
+      "max_window_cells": 3073600,
+      "median_window_cells": 52700.0
+    }
+  ],
+  "pair_counts": [
+    20,
+    50,
+    100,
+    200,
+    500,
+    2000,
+    10000
+  ],
+  "sampling_pair_counts": [
+    500,
+    2000,
+    10000
+  ],
+  "gpu_profile_pair_counts": [
+    500,
+    2000,
+    10000
+  ],
+  "cpu_gpu_comparison_pair_counts": [
+    20,
+    50,
+    100,
+    200,
+    500
+  ],
+  "pair_lists_are_nested_prefixes": true,
+  "pair_summaries": [
+    {
+      "pair_count": 20,
+      "unique_families": 40,
+      "total_window_cells": 487045,
+      "estimated_float32_matrix_payload_bytes": 1948180,
+      "estimated_npy_bytes_with_128_byte_header": 1950740,
+      "min_window_cells_per_pair": 1953,
+      "median_window_cells_per_pair": 14217.5,
+      "p95_window_cells_per_pair": 79429.95000000001,
+      "max_window_cells_per_pair": 101925,
+      "pairs_Q1": 4,
+      "pairs_Q2": 4,
+      "pairs_Q3": 4,
+      "pairs_Q4": 4,
+      "pairs_Q5": 4,
+      "pair_list": "${BENCHMARK_OUTPUT_ROOT}/design/pair_lists/pairs_20.csv"
+    },
+    {
+      "pair_count": 50,
+      "unique_families": 100,
+      "total_window_cells": 1091934,
+      "estimated_float32_matrix_payload_bytes": 4367736,
+      "estimated_npy_bytes_with_128_byte_header": 4374136,
+      "min_window_cells_per_pair": 1620,
+      "median_window_cells_per_pair": 13856.0,
+      "p95_window_cells_per_pair": 63533.04999999998,
+      "max_window_cells_per_pair": 101925,
+      "pairs_Q1": 10,
+      "pairs_Q2": 10,
+      "pairs_Q3": 10,
+      "pairs_Q4": 10,
+      "pairs_Q5": 10,
+      "pair_list": "${BENCHMARK_OUTPUT_ROOT}/design/pair_lists/pairs_50.csv"
+    },
+    {
+      "pair_count": 100,
+      "unique_families": 200,
+      "total_window_cells": 2486781,
+      "estimated_float32_matrix_payload_bytes": 9947124,
+      "estimated_npy_bytes_with_128_byte_header": 9959924,
+      "min_window_cells_per_pair": 1190,
+      "median_window_cells_per_pair": 13856.0,
+      "p95_window_cells_per_pair": 78794.49999999997,
+      "max_window_cells_per_pair": 265557,
+      "pairs_Q1": 20,
+      "pairs_Q2": 20,
+      "pairs_Q3": 20,
+      "pairs_Q4": 20,
+      "pairs_Q5": 20,
+      "pair_list": "${BENCHMARK_OUTPUT_ROOT}/design/pair_lists/pairs_100.csv"
+    },
+    {
+      "pair_count": 200,
+      "unique_families": 397,
+      "total_window_cells": 5009275,
+      "estimated_float32_matrix_payload_bytes": 20037100,
+      "estimated_npy_bytes_with_128_byte_header": 20062700,
+      "min_window_cells_per_pair": 992,
+      "median_window_cells_per_pair": 13958.0,
+      "p95_window_cells_per_pair": 85330.64999999998,
+      "max_window_cells_per_pair": 265557,
+      "pairs_Q1": 40,
+      "pairs_Q2": 40,
+      "pairs_Q3": 40,
+      "pairs_Q4": 40,
+      "pairs_Q5": 40,
+      "pair_list": "${BENCHMARK_OUTPUT_ROOT}/design/pair_lists/pairs_200.csv"
+    },
+    {
+      "pair_count": 500,
+      "unique_families": 983,
+      "total_window_cells": 12311926,
+      "estimated_float32_matrix_payload_bytes": 49247704,
+      "estimated_npy_bytes_with_128_byte_header": 49311704,
+      "min_window_cells_per_pair": 404,
+      "median_window_cells_per_pair": 13967.0,
+      "p95_window_cells_per_pair": 86786.5499999999,
+      "max_window_cells_per_pair": 265557,
+      "pairs_Q1": 100,
+      "pairs_Q2": 100,
+      "pairs_Q3": 100,
+      "pairs_Q4": 100,
+      "pairs_Q5": 100,
+      "pair_list": "${BENCHMARK_OUTPUT_ROOT}/design/pair_lists/pairs_500.csv"
+    },
+    {
+      "pair_count": 2000,
+      "unique_families": 3694,
+      "total_window_cells": 48131436,
+      "estimated_float32_matrix_payload_bytes": 192525744,
+      "estimated_npy_bytes_with_128_byte_header": 192781744,
+      "min_window_cells_per_pair": 228,
+      "median_window_cells_per_pair": 13784.5,
+      "p95_window_cells_per_pair": 76968.09999999999,
+      "max_window_cells_per_pair": 521079,
+      "pairs_Q1": 400,
+      "pairs_Q2": 400,
+      "pairs_Q3": 400,
+      "pairs_Q4": 400,
+      "pairs_Q5": 400,
+      "pair_list": "${BENCHMARK_OUTPUT_ROOT}/design/pair_lists/pairs_2000.csv"
+    },
+    {
+      "pair_count": 10000,
+      "unique_families": 13877,
+      "total_window_cells": 241556038,
+      "estimated_float32_matrix_payload_bytes": 966224152,
+      "estimated_npy_bytes_with_128_byte_header": 967504152,
+      "min_window_cells_per_pair": 96,
+      "median_window_cells_per_pair": 13932.0,
+      "p95_window_cells_per_pair": 78260.69999999978,
+      "max_window_cells_per_pair": 521079,
+      "pairs_Q1": 2000,
+      "pairs_Q2": 2000,
+      "pairs_Q3": 2000,
+      "pairs_Q4": 2000,
+      "pairs_Q5": 2000,
+      "pair_list": "${BENCHMARK_OUTPUT_ROOT}/design/pair_lists/pairs_10000.csv"
+    }
+  ],
+  "cpu_gpu_validation_sample": {
+    "enabled": true,
+    "purpose": "CPU/GPU correctness and serial-CPU resource comparison on raw symmetric KL only",
+    "pair_list": "${BENCHMARK_OUTPUT_ROOT}/design/pair_lists/pairs_cpu_gpu_validation.csv",
+    "pair_count": 5,
+    "source_pair_count": 500,
+    "max_window_cells_per_pair_limit": 10000,
+    "unique_families": 10,
+    "total_window_cells": 27733,
+    "min_window_cells_per_pair": 1953,
+    "median_window_cells_per_pair": 4400.0,
+    "max_window_cells_per_pair": 9568,
+    "workload_strata_observed": [
+      "Q1",
+      "Q2"
+    ],
+    "raw_kl_only": true,
+    "normalization_or_background_filtering_included": false
+  },
+  "full_family_coverage_sample": {
+    "sample_kind": "full_family_coverage",
+    "pair_count": 12773,
+    "unique_families": 25545,
+    "total_window_cells": 306775980,
+    "estimated_float32_matrix_payload_bytes": 1227103920,
+    "estimated_npy_bytes_with_128_byte_header": 1228738864,
+    "min_window_cells_per_pair": 196,
+    "median_window_cells_per_pair": 14160.0,
+    "p95_window_cells_per_pair": 75861.0,
+    "max_window_cells_per_pair": 629622,
+    "pair_list": "${BENCHMARK_OUTPUT_ROOT}/design/pair_lists/pairs_full_family_coverage.csv",
+    "purpose": "Touch every packed family with ceil(N/2) pair calculations to measure full-family data-loading and CPU-inversion memory without all-pairs computation."
+  },
+  "full_workload_json": "${BENCHMARK_OUTPUT_ROOT}/design/full_workload.json",
+  "index_csv": "${PACKED_DB}/index.csv"
+}
