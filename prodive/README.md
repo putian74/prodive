@@ -2,7 +2,7 @@
 
 ProDive detects local similarities between profile hidden Markov models. It packs fixed-length HHM fragments, calculates symmetric KL-divergence matrices on GPUs, filters significant window pairs, builds diagonal paths, and applies coverage-based rescoring.
 
-External data and precomputed results are available from <https://doi.org/10.5281/zenodo.20838915>.
+External data and precomputed results are available from <https://doi.org/10.5281/zenodo.21932666>.
 
 ## Directory layout
 
