@@ -1,0 +1,7 @@
+pandas
+numpy
+matplotlib
+seaborn
+tqdm
+biopython
+# DSSP or mkdssp must also be available on PATH.
