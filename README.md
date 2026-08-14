@@ -47,10 +47,4 @@ The two code modules share the released data but represent separate workflows. T
 - Analyses requiring Pfam seed structures should follow the structure-archive README to construct the expected runtime directory.
 - Software dependencies and module-specific parameters are documented separately in each code directory.
 
-## Citation
 
-Manuscript citation information will be added after publication. When reusing the released data, please cite the Zenodo record above.
-
-## Contact
-
-For questions about the code or released data, please open an issue in this repository.
