@@ -302,8 +302,3 @@ $PRODIVE_PRECOMPUTED_ROOT/
 
 Use these files for inspection or downstream plotting when a full rerun is unnecessary. New runs should write to `$PRODIVE_WORK_ROOT`.
 
-## Citation
-
-Data and precomputed results:
-
-> Tian, Pu, and Chen, Xiang. *ProDive external data and Pfam structure manifest archive*. Zenodo. <https://doi.org/10.5281/zenodo.20838915>
