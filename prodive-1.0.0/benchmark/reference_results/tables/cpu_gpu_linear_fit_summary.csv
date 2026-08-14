@@ -1,4 +1,0 @@
-backend,device_count,point_count,intercept_seconds,seconds_per_window_cell,asymptotic_window_cells_per_second,r_squared,interpretation
-CPU,1,5,-1.7113119682280924,2.6449256781863446e-05,37808.24573814533,0.9996825220726177,descriptive fit over measured sampled workloads only
-GPU,1,5,0.346547578195601,1.08745369432371e-06,919579.3855129641,0.9992807608669776,descriptive fit over measured sampled workloads only
-GPU,2,5,0.4889138471927781,7.353542915443253e-07,1359888.71146708,0.9994633359599772,descriptive fit over measured sampled workloads only
