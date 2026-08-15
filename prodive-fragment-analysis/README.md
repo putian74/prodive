@@ -3,7 +3,6 @@
 This repository contains downstream workflows for analyzing ProDive Pfam–Pfam and de novo–Pfam fragment correspondences. Analysis inputs and released results are available from Zenodo:
 
 <https://doi.org/10.5281/zenodo.21932666>
-
 ## Repository layout
 
 | Directory | Function |
