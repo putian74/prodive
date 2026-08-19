@@ -45,5 +45,5 @@ The released precomputed results allow individual validation or analysis modules
 - Default parameters and exact command-line interfaces are documented in the README within each code directory.
 - Full regeneration of the ProDive search requires substantial GPU computation and local storage for intermediate matrices.
 - Structure-dependent analyses require the structure resources described in the relevant module documentation.
-- New outputs should be written to separate working directories rather than into the released data directories.
+
 
