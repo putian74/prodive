@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-: "${PRODIVE_DATA_ROOT:?Set PRODIVE_DATA_ROOT to the external ProDive data archive data/ directory}"
+: "${PRODIVE_DATA_ROOT:?Set PRODIVE_DATA_ROOT to the ProDive_methods_data/data directory}"
 : "${PRODIVE_WORK_ROOT:?Set PRODIVE_WORK_ROOT to a writable output directory}"
 PYTHON=${PYTHON:-python3}
 

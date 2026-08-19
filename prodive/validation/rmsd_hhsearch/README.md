@@ -17,8 +17,9 @@ conda install -c conda-forge pymol-open-source
 Set the input, completed-result, structure, and output roots:
 
 ```bash
-export PRODIVE_DATA_ROOT=/path/to/ProDive_release/data
-export PRODIVE_PRECOMPUTED_ROOT=/path/to/ProDive_release/precomputed_results
+export PRODIVE_METHODS_DATA_ROOT=/path/to/ProDive_methods_data
+export PRODIVE_DATA_ROOT="$PRODIVE_METHODS_DATA_ROOT/data"
+export PRODIVE_PRECOMPUTED_ROOT="$PRODIVE_METHODS_DATA_ROOT/precomputed_results"
 export PRODIVE_STRUCTURE_ROOT=/path/to/PfamA_seed_structure
 export PRODIVE_WORK_ROOT=/path/to/validation_work
 export PRODIVE_PFAM_RUNTIME_ROOT=/path/to/PfamA_seed_runtime

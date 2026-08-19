@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-: "${PRODIVE_DATA_ROOT:?Set PRODIVE_DATA_ROOT to the ProDive_release/data directory}"
+: "${PRODIVE_DATA_ROOT:?Set PRODIVE_DATA_ROOT to the ProDive_methods_data/data directory}"
 : "${PRODIVE_WORK_ROOT:?Set PRODIVE_WORK_ROOT to a writable output directory}"
 : "${THIRD_SCORE_INPUT_ROOT:?Set THIRD_SCORE_INPUT_ROOT to the distributed full-grid path-scan root}"
 : "${FAMILY_SET_INPUT_ROOT:?Set FAMILY_SET_INPUT_ROOT to the distributed family-set result root}"

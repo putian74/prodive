@@ -1,8 +1,10 @@
 # ProDive
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22009469.svg)](https://doi.org/10.5281/zenodo.22009469)
+
 ProDive detects local similarities between profile hidden Markov models. It packs fixed-length HHM fragments, calculates symmetric KL-divergence matrices on GPUs, filters significant window pairs, builds diagonal paths, and applies coverage-based rescoring.
 
-External data and precomputed results are available from <https://doi.org/10.5281/zenodo.21932666>.
+Methods data and precomputed validation results are available from <https://doi.org/10.5281/zenodo.22009469>.
 
 ## Directory layout
 
@@ -34,12 +36,12 @@ make -C src/cpp_cuda -j
 
 ## Data setup
 
-Extract the external data archive, then define the data, result, and work roots:
+Extract the methods data archive, then define the data, result, and work roots:
 
 ```bash
-export PRODIVE_RELEASE_ROOT=/path/to/ProDive_release
-export PRODIVE_DATA_ROOT="$PRODIVE_RELEASE_ROOT/data"
-export PRODIVE_PRECOMPUTED_ROOT="$PRODIVE_RELEASE_ROOT/precomputed_results"
+export PRODIVE_METHODS_DATA_ROOT=/path/to/ProDive_methods_data
+export PRODIVE_DATA_ROOT="$PRODIVE_METHODS_DATA_ROOT/data"
+export PRODIVE_PRECOMPUTED_ROOT="$PRODIVE_METHODS_DATA_ROOT/precomputed_results"
 export PRODIVE_WORK_ROOT=/path/to/prodive_work
 ```
 
@@ -57,10 +59,11 @@ Released resources used by this repository are:
 | Pfam numeric mapping | `$PRODIVE_DATA_ROOT/shared/pfam_mapping_seed_new.txt` |
 | fragment-6 background values | `$PRODIVE_DATA_ROOT/shared/result_kl_all_pfam.json` |
 | final Pfam-Pfam table | `$PRODIVE_DATA_ROOT/shared/global_high_score_summary_fin.csv` |
-| final de novo-Pfam table | `$PRODIVE_DATA_ROOT/shared/denovo_global_high_score_summary_fin.csv` |
+| score-percentile subsets | `$PRODIVE_DATA_ROOT/shared/score_percentile_subsets/` |
 | fixed fragment-length pair list | `$PRODIVE_DATA_ROOT/parameter_sensitivity/fragment_length/sampled_pairlist.csv` |
 | HHsearch and RMSD inputs | `$PRODIVE_DATA_ROOT/rmsd/` |
-| completed analysis outputs | `$PRODIVE_PRECOMPUTED_ROOT/` |
+| completed parameter-sensitivity results | `$PRODIVE_PRECOMPUTED_ROOT/parameter_sensitivity/` |
+| completed Pfam-Pfam RMSD results | `$PRODIVE_PRECOMPUTED_ROOT/rmsd/` |
 
 Packed databases, dense GPU KL matrices, filtered pickle files, and path-building intermediates are generated locally under `PRODIVE_WORK_ROOT`.
 
@@ -245,3 +248,7 @@ python3 src/path_extraction/scripts/03_rescore_paths_by_coverage.py \
 - Performance tests: [`benchmark/README.md`](benchmark/README.md)
 - Parameter scans: [`validation/parameter_sensitivity/README.md`](validation/parameter_sensitivity/README.md)
 - RMSD and HHsearch validation: [`validation/rmsd_hhsearch/README.md`](validation/rmsd_hhsearch/README.md)
+
+## Citation
+
+When using the released methods data or precomputed validation results, cite the associated ProDive methods article and the Zenodo record: <https://doi.org/10.5281/zenodo.22009469>.

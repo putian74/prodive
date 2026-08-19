@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-: "${PRODIVE_DATA_ROOT:?Set PRODIVE_DATA_ROOT to the ProDive_release/data directory}"
+: "${PRODIVE_DATA_ROOT:?Set PRODIVE_DATA_ROOT to the ProDive_methods_data/data directory}"
 : "${PRODIVE_WORK_ROOT:?Set PRODIVE_WORK_ROOT to a writable output directory}"
 : "${RAW_SPARSE_DIR:?Set RAW_SPARSE_DIR to the sparse NPZ directory produced by threshold-scan script 01}"
 

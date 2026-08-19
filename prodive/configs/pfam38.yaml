@@ -18,4 +18,4 @@ all_pairs_workload:
 
 provenance:
   source: benchmark/reference_results/design/full_workload.json
-  data_archive_doi: 10.5281/zenodo.20838915
+  data_archive_doi: 10.5281/zenodo.22009469

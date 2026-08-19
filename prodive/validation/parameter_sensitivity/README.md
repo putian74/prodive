@@ -11,8 +11,9 @@ python3 -m pip install -r validation/parameter_sensitivity/requirements.txt
 Set the external data, completed-result, work, and GPU executable paths:
 
 ```bash
-export PRODIVE_DATA_ROOT=/path/to/ProDive_release/data
-export PRODIVE_PRECOMPUTED_ROOT=/path/to/ProDive_release/precomputed_results
+export PRODIVE_METHODS_DATA_ROOT=/path/to/ProDive_methods_data
+export PRODIVE_DATA_ROOT="$PRODIVE_METHODS_DATA_ROOT/data"
+export PRODIVE_PRECOMPUTED_ROOT="$PRODIVE_METHODS_DATA_ROOT/precomputed_results"
 export PRODIVE_WORK_ROOT=/path/to/parameter_work
 export KL_CPP_EXE=/path/to/kl_divergence
 ```
