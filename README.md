@@ -47,6 +47,3 @@ The released precomputed results allow individual validation or analysis modules
 - Structure-dependent analyses require the structure resources described in the relevant module documentation.
 - New outputs should be written to separate working directories rather than into the released data directories.
 
-## Citation
-
-When using either workflow, please cite the corresponding article and Zenodo data record listed in that workflow's README.
