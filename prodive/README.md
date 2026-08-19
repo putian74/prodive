@@ -1,7 +1,5 @@
 # ProDive
 
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22009469.svg)](https://doi.org/10.5281/zenodo.22009469)
-
 ProDive detects local similarities between profile hidden Markov models. It packs fixed-length HHM fragments, calculates symmetric KL-divergence matrices on GPUs, filters significant window pairs, builds diagonal paths, and applies coverage-based rescoring.
 
 Methods data and precomputed validation results are available from <https://doi.org/10.5281/zenodo.22009469>.
@@ -249,6 +247,3 @@ python3 src/path_extraction/scripts/03_rescore_paths_by_coverage.py \
 - Parameter scans: [`validation/parameter_sensitivity/README.md`](validation/parameter_sensitivity/README.md)
 - RMSD and HHsearch validation: [`validation/rmsd_hhsearch/README.md`](validation/rmsd_hhsearch/README.md)
 
-## Citation
-
-When using the released methods data or precomputed validation results, cite the associated ProDive methods article and the Zenodo record: <https://doi.org/10.5281/zenodo.22009469>.
