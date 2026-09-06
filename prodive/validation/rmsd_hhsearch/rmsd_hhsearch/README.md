@@ -43,8 +43,9 @@ Structural scripts that accept `--pfam-dir` require a merged runtime view in whi
 |---|---|---|
 | `01_parse_hhr_to_csv.py` | parse `.hhr` files and retain hits above a probability threshold | `python3 <script> --input-dir DIR --output-csv FILE --prob-threshold 20` |
 | `02_make_percentile_subsets.py` | create score-ranked ProDive subsets | `python3 <script> --input-csv FILE --output-dir DIR` |
-| `03_check_hhsearch_overlap.py` | classify each ProDive pair as present or absent in HHsearch | `python3 <script> --base-dir DIR --hhsuite-csv FILE --hhsuite-threshold 20` |
+| `03_check_hhsearch_overlap.py` | classify ProDive paths by dual coverage with HHsearch hits | `python3 <script> --base-dir DIR --hhsuite-csv FILE --hhsuite-threshold 20` |
 | `04_build_hhsearch_class_tasks.py` | create shared, ProDive-only, and HHsearch-only task tables | `python3 <script> --prodive-overlap-csv FILE --hhsuite-csv FILE --output-dir DIR` |
+| `05_plot_hhsearch_overlap_with_prodive.py` | plot shared and HHsearch-only family-pair counts across ProDive score-ranked subsets | `python3 <script> --hhsuite-csv FILE --overlap-dir DIR --output-dir DIR --probability-threshold 20 --coverage-threshold 0.2` |
 | `run_hhsearch_preprocessing.sh` | run scripts 01–04 for probability thresholds 20 and 70 | set the environment variables above and run with `bash` |
 
 Run the complete preprocessing workflow:
@@ -55,6 +56,35 @@ bash validation/rmsd_hhsearch/hhsearch_comparison/run_hhsearch_preprocessing.sh
 
 Main outputs are parsed HHsearch tables, percentile subsets, overlap classifications, and RMSD task tables under `$PRODIVE_WORK_ROOT/rmsd/hhsearch_comparison`.
 
+### HHsearch overlap figure
+
+Run `hhsearch_comparison/scripts/05_plot_hhsearch_overlap_with_prodive.py` after preprocessing, or use existing parsed HHsearch and detailed overlap CSVs. The preprocessing wrapper runs steps 01–04; run step 05 separately to generate this figure.
+
+For each cutoff, the script reads `hhsuite20.csv` or `hhsuite70.csv` and the matching `subset_data_Top_{05,10,20,50,100}%_overlap_check_dual_{20,70}.csv` files. Use `--files` and `--labels` to supply other filenames or subsets.
+
+The stacked bars count unique unordered HHsearch family pairs. A pair is shared if at least one ProDive path for that pair has `Dual_Min_Coverage >= 0.2`; all remaining HHsearch pairs are HHsearch-only. Repeated and reversed pairs are counted once. The two categories sum to the same HHsearch-pair total for every subset at a given cutoff. This total is a family-pair count, not the number of ProDive path rows.
+
+Generate separate figures for HHsearch probability cutoffs 20% and 70%:
+
+```bash
+for prob in 20 70; do
+  python3 validation/rmsd_hhsearch/hhsearch_comparison/scripts/05_plot_hhsearch_overlap_with_prodive.py \
+    --hhsuite-csv "$PRODIVE_WORK_ROOT/rmsd/hhsearch_comparison/hhsuite${prob}.csv" \
+    --overlap-dir "$PRODIVE_WORK_ROOT/rmsd/hhsearch_comparison/percentile_filtered_reports" \
+    --probability-threshold "$prob" \
+    --coverage-threshold 0.2 \
+    --output-dir "$PRODIVE_WORK_ROOT/rmsd/hhsearch_comparison/figures_prob${prob}"
+done
+```
+
+Each output directory contains:
+
+- `hhsearch_overlap_with_prodive_summary.csv`: pair counts, percentages, and ProDive path-row counts.
+- `hhsearch_overlap_with_prodive.png`: stacked bar figure at 300 dpi by default.
+- `hhsearch_overlap_with_prodive.pdf`: PDF version of the figure.
+
+`--probability-threshold` filters HHsearch `Prob` values and selects the overlap filename suffix. `--coverage-threshold` sets the minimum dual coverage for a shared pair; it is a separate threshold. The script reads completed results and does not rerun HHsearch or RMSD calculations.
+
 ## Structural RMSD
 
 | Script/module | Function | How to run |
@@ -63,11 +93,11 @@ Main outputs are parsed HHsearch tables, percentile subsets, overlap classificat
 | `02_rmsd_hhsearch_only.py` | calculate RMSD for HHsearch-only task rows | `python3 <script> --task-csv FILE --pfam-dir DIR --output-csv FILE` |
 | `03_rmsd_shared_hhsearch_segments.py` | calculate RMSD for shared pairs using HHsearch boundaries | `python3 <script> --ref-csv FILE --pfam-dir DIR --output-csv FILE` |
 | `04_rmsd_prodive_only_pipeline.py` | select representative structures, calculate ProDive-only RMSD, and standardize output | `python3 <script> --input-csv FILE --pfam-dir DIR --output-dir DIR` |
-| `06_filter_rmsd_by_hhsearch_probability.py` | filter RMSD tables by matched HHsearch probability | `python3 <script> --hhsuite-csv FILE --overlap-csv FILE --hhsuite-only-rmsd FILE --shared-prodive-rmsd FILE --shared-hh-rmsd FILE --output-dir DIR` |
-| `07_plot_rmsd_density_panels.py` | draw RMSD-versus-length density panels from configured datasets | `python3 <script> --dataset-config FILE --output-dir DIR` |
-| `08_sample_random_pfam_pairs.py` | generate length-stratified random Pfam-Pfam RMSD controls | `python3 <script> --pfam-dir DIR --output-csv FILE --per-length-quota 25000` |
-| `10_compare_real_random_core.py` | compare real and random RMSD distributions by aligned length | `python3 <script> --real-csv FILE --random-csv FILE --output-stats-csv FILE --output-plot FILE` |
-| `11_welch_ttest_from_stats.py` | calculate Welch tests from the grouped statistics | `python3 <script> --stats-csv FILE --output-csv FILE` |
+| `05_filter_rmsd_by_hhsearch_probability.py` | filter RMSD tables by matched HHsearch probability | `python3 <script> --hhsuite-csv FILE --overlap-csv FILE --hhsuite-only-rmsd FILE --shared-prodive-rmsd FILE --shared-hh-rmsd FILE --output-dir DIR` |
+| `06_plot_rmsd_density_panels.py` | draw RMSD-versus-length density panels from configured datasets | `python3 <script> --dataset-config FILE --output-dir DIR` |
+| `07_sample_random_pfam_pairs.py` | generate length-stratified random Pfam-Pfam RMSD controls | `python3 <script> --pfam-dir DIR --output-csv FILE --per-length-quota 25000` |
+| `08_compare_real_random_core.py` | compare real and random RMSD distributions by aligned length | `python3 <script> --real-csv FILE --random-csv FILE --output-stats-csv FILE --output-plot FILE` |
+| `09_welch_ttest_from_stats.py` | calculate Welch tests from the grouped statistics | `python3 <script> --stats-csv FILE --output-csv FILE` |
 | `prodive_rmsd/structural_utils.py` | shared sequence, structure, alignment, and RMSD functions | imported by scripts 01–04 |
 
 Example ProDive-only calculation:
@@ -83,7 +113,7 @@ python3 validation/rmsd_hhsearch/structural_validation/scripts/04_rmsd_prodive_o
 Example random control and comparison:
 
 ```bash
-python3 validation/rmsd_hhsearch/structural_validation/scripts/08_sample_random_pfam_pairs.py \
+python3 validation/rmsd_hhsearch/structural_validation/scripts/07_sample_random_pfam_pairs.py \
   --pfam-dir "$PRODIVE_PFAM_RUNTIME_ROOT" \
   --output-csv "$PRODIVE_WORK_ROOT/rmsd/random_pfam.csv" \
   --aligned-lengths 8,9,10,11,12,13 \
@@ -91,7 +121,7 @@ python3 validation/rmsd_hhsearch/structural_validation/scripts/08_sample_random_
   --coverage-threshold 0.8 \
   --workers 20
 
-python3 validation/rmsd_hhsearch/structural_validation/scripts/10_compare_real_random_core.py \
+python3 validation/rmsd_hhsearch/structural_validation/scripts/08_compare_real_random_core.py \
   --real-csv /path/to/prodive_only_rmsd_standard.csv \
   --random-csv "$PRODIVE_WORK_ROOT/rmsd/random_pfam.csv" \
   --output-stats-csv "$PRODIVE_WORK_ROOT/rmsd/real_random_summary.csv" \
