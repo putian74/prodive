@@ -1,21 +1,23 @@
-# Figure generation from RMSD validation outputs
+# De novo-Pfam RMSD figures
 
-This submodule generates RMSD validation figures and real-vs-random statistical summaries from the structural-validation output tables.
+Generate density panels and real-versus-random plots from completed de novo-Pfam RMSD tables.
 
-## Inputs
+Edit the input paths in:
 
-| Input | Source |
-|---|---|
-| RMSD validation tables | Output of `../structural_validation/` or released precomputed tables |
-| Figure configuration CSVs | Local files under `configs/`, edited to point to the relevant tables |
+- `configs/denovo_datasets.example.csv`
+- `configs/denovo_random_control_datasets.example.csv`
 
-## Workflow
+Use absolute input paths, or paths relative to `prodive_rmsd_validation/figure_reproduction/`. Relative output paths in the random-control configuration are resolved under `--output-dir`.
 
-| Step | Script | Main input | Main output |
-|---:|---|---|---|
-| 1 | `../structural_validation/scripts/07_plot_rmsd_density_panels.py` | Config CSV listing RMSD tables | RMSD validation and supplementary density panels |
-| 2 | `../structural_validation/scripts/10_compare_real_random_core.py` | Real and random RMSD tables | Random-control boxplots and summary tables |
-| 3 | `../structural_validation/scripts/11_welch_ttest_from_stats.py` | Real-versus-random summary tables | Welch t-test table |
-| 4 | `scripts/run_figure_reproduction.py` | Figure configuration files | Complete figure-reproduction run |
+From the repository root:
 
-The example configuration files in `configs/` define the expected column layout and should be copied and edited to use local or released RMSD tables before execution. The wrapper reuses the structural-validation plotting and statistics scripts instead of maintaining duplicate implementations.
+```bash
+python3 prodive_rmsd_validation/figure_reproduction/scripts/run_figure_reproduction.py \
+  --density-config configs/denovo_datasets.example.csv \
+  --random-config configs/denovo_random_control_datasets.example.csv \
+  --output-dir "$PRODIVE_WORK_ROOT/rmsd/denovo_figures"
+```
+
+Use `--skip-random` to plot only the observed RMSD density, or `--skip-density` to generate only random-control comparisons. Density panels are written under `density_panels/`; comparison outputs follow the filenames in the random-control configuration.
+
+The example configurations contain only de novo-Pfam datasets. The wrapper reads existing results and does not recalculate RMSD.

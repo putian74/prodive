@@ -1,46 +1,49 @@
-# Structural validation and random controls
+# De novo-Pfam structural validation
 
-This submodule computes local RMSD values for ProDive/HHsearch comparison classes, de novo-Pfam pairs, and length-stratified random controls.
+Run commands from the repository root after setting the paths in the [module README](../README.md).
 
-## Inputs
-
-| Input | Source |
+| Script | Function |
 |---|---|
-| HHsearch/ProDive task tables | Output of `../hhsearch_comparison/` |
-| Pfam seed HHM/STO/FAS files | `$PRODIVE_DATA_ROOT/shared/PfamA_seed/` |
-| Pfam structure runtime directory | `$PRODIVE_PFAM_RUNTIME_ROOT` |
-| de novo-Pfam result | `$PRODIVE_DATA_ROOT/shared/denovo_global_high_score_summary_fin.csv` |
-| de novo structures | `$PRODIVE_DATA_ROOT/shared/structures/denovo_structures/downloaded_denovo_pdbs/` |
-| de novo FASTA | `$PRODIVE_DATA_ROOT/shared/structures/denovo_structures/all_1927_sequences.fasta` |
+| `01_rmsd_denovo_pfam.py` | Map de novo and Pfam fragments to structures, superpose C-alpha atoms with PyMOL, and write RMSD and coverage. |
+| `02_sample_random_denovo_pfam_pairs.py` | Sample random de novo-Pfam structural windows, grouped by aligned length. |
+| `03_plot_rmsd_density_panels.py` | Plot RMSD against aligned length from a dataset configuration CSV. |
+| `04_compare_real_random_core.py` | Compare real and random RMSD by aligned length; write summary statistics and a boxplot. |
+| `05_welch_ttest_from_stats.py` | Calculate two-sided Welch tests from grouped summary statistics. |
 
-## Workflow
-
-| Step | Script | Main input | Main output |
-|---:|---|---|---|
-| 1 | `scripts/01_rmsd_shared_prodive_segments.py` | Shared ProDive-boundary task table | Shared ProDive-boundary RMSD table |
-| 2 | `scripts/02_rmsd_hhsearch_only.py` | HHsearch-only task table | HHsearch-only RMSD table |
-| 3 | `scripts/03_rmsd_shared_hhsearch_segments.py` | Shared HHsearch-boundary task table | Shared HHsearch-boundary RMSD table |
-| 4 | `scripts/04_rmsd_prodive_only_pipeline.py` | ProDive-only task table | ProDive-only RMSD table |
-| 5 | `scripts/05_rmsd_denovo_pfam.py` | de novo-Pfam result and structures | de novo-Pfam RMSD table |
-| 6 | `scripts/06_filter_rmsd_by_hhsearch_probability.py` | HHsearch CSVs and RMSD tables | Probability-filtered RMSD tables |
-| 7 | `scripts/07_plot_rmsd_density_panels.py` | RMSD tables | RMSD density panels |
-| 8 | `scripts/08_sample_random_pfam_pairs.py` | Pfam runtime directory | Random Pfam-Pfam RMSD table |
-| 9 | `scripts/09_sample_random_denovo_pfam_pairs.py` | de novo structures and Pfam runtime directory | Random de novo-Pfam RMSD table |
-| 10 | `scripts/10_compare_real_random_core.py` | Real and random RMSD tables | Core-region real-vs-random summaries and plots |
-| 11 | `scripts/11_welch_ttest_from_stats.py` | Step 10 summary tables | Welch t-test table |
-
-Structure alignment scripts require PyMOL in the runtime environment. After completing HHsearch preprocessing, run the primary structural workflow with:
+## Observed fragments
 
 ```bash
-bash run_structural_validation.sh
+python3 prodive_rmsd_validation/structural_validation/scripts/01_rmsd_denovo_pfam.py \
+  --input-csv "$PRODIVE_DATA_ROOT/shared/denovo_global_high_score_summary_fin.csv" \
+  --denovo-pdb-dir "$PRODIVE_DATA_ROOT/shared/structures/denovo_structures/downloaded_denovo_pdbs" \
+  --fasta-mapping-file "$PRODIVE_DATA_ROOT/shared/structures/denovo_structures/all_1927_sequences.fasta" \
+  --pfam-dir "$PRODIVE_PFAM_RUNTIME_ROOT" \
+  --output-csv "$PRODIVE_WORK_ROOT/rmsd/denovo_rmsd.csv"
 ```
 
-The template calculates the probability >20% comparison classes, the ProDive-only and de novo-Pfam results, and the matched probability >70% subsets. Set `FILTER_PROB70=0` to skip the final probability filtering. Existing outputs are protected by the first three scripts; set `OVERWRITE=1` to replace them.
+`--segment-mode first` uses the first segment pair per input row; `--segment-mode all` processes all semicolon-separated pairs. Coverage is the aligned C-alpha count divided by `Main_Segment_Len`, or by the de novo query segment length when that column is unavailable. Output rows record successful calculations; failure counts are printed to the terminal.
 
-Random-control scripts are independent commands. Their released outputs are under `data/rmsd/random_control_inputs/`:
+## Random controls and comparison
 
 ```bash
-python3 scripts/08_sample_random_pfam_pairs.py --help
-python3 scripts/09_sample_random_denovo_pfam_pairs.py --help
-python3 scripts/10_compare_real_random_core.py --help
+python3 prodive_rmsd_validation/structural_validation/scripts/02_sample_random_denovo_pfam_pairs.py \
+  --pfam-dir "$PRODIVE_PFAM_RUNTIME_ROOT" \
+  --denovo-pdb-dir "$PRODIVE_DATA_ROOT/shared/structures/denovo_structures/downloaded_denovo_pdbs" \
+  --output-csv "$PRODIVE_WORK_ROOT/rmsd/denovo_random.csv" \
+  --aligned-lengths 8,9,10,11,12,13 --per-length-quota 10000 \
+  --coverage-threshold 0.8 --workers 20
+
+python3 prodive_rmsd_validation/structural_validation/scripts/04_compare_real_random_core.py \
+  --real-csv "$PRODIVE_WORK_ROOT/rmsd/denovo_rmsd.csv" \
+  --random-csv "$PRODIVE_WORK_ROOT/rmsd/denovo_random.csv" \
+  --output-stats-csv "$PRODIVE_WORK_ROOT/rmsd/denovo_summary.csv" \
+  --output-plot "$PRODIVE_WORK_ROOT/rmsd/denovo_real_random.png"
+
+python3 prodive_rmsd_validation/structural_validation/scripts/05_welch_ttest_from_stats.py \
+  --stats-csv "$PRODIVE_WORK_ROOT/rmsd/denovo_summary.csv" \
+  --output-csv "$PRODIVE_WORK_ROOT/rmsd/denovo_welch.csv"
 ```
+
+The random sampler selects a Pfam family, one of its structures, and a de novo structure, then samples equal-length windows from their first chains. Input lengths range from 8 to 20; accepted pairs must satisfy the requested aligned-length bins and coverage. This is a length-stratified structural background, not a same-protein control for each observed fragment. The existing seed option includes process/time offsets and does not guarantee identical draws across runs.
+
+For density panels, use the [figure workflow](../figure_reproduction/README.md). Run any script with `--help` for additional options.

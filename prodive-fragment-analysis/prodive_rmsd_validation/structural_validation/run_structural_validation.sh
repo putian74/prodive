@@ -1,78 +1,64 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-: "${PRODIVE_DATA_ROOT:?Set PRODIVE_DATA_ROOT to the released data directory}"
+: "${PRODIVE_DATA_ROOT:?Set PRODIVE_DATA_ROOT to the external data directory}"
 : "${PRODIVE_WORK_ROOT:?Set PRODIVE_WORK_ROOT to a writable output directory}"
-: "${PRODIVE_PFAM_RUNTIME_ROOT:?Set PRODIVE_PFAM_RUNTIME_ROOT to the merged Pfam profile/structure runtime directory}"
+: "${PRODIVE_PFAM_RUNTIME_ROOT:?Set PRODIVE_PFAM_RUNTIME_ROOT to the merged Pfam profile/structure directory}"
 PYTHON=${PYTHON:-python3}
-
 MODULE_ROOT="$(cd "$(dirname "$0")" && pwd)"
-HH_ROOT=${HH_ROOT:-"${PRODIVE_WORK_ROOT}/rmsd/hhsearch_comparison"}
 RESULT_ROOT=${RESULT_ROOT:-"${PRODIVE_WORK_ROOT}/rmsd/structural_validation/rmsd_result_tables"}
-OVERLAP20="${HH_ROOT}/percentile_filtered_reports/subset_data_Top_100%_overlap_check_dual_20.csv"
-TASK20="${HH_ROOT}/class_tasks_prob20/hhsuite_only_tasks.csv"
+DENOVO_INPUT_CSV=${DENOVO_INPUT_CSV:-"${PRODIVE_DATA_ROOT}/shared/denovo_global_high_score_summary_fin.csv"}
+DENOVO_PDB_DIR=${DENOVO_PDB_DIR:-"${PRODIVE_DATA_ROOT}/shared/structures/denovo_structures/downloaded_denovo_pdbs"}
+DENOVO_FASTA=${DENOVO_FASTA-"${PRODIVE_DATA_ROOT}/shared/structures/denovo_structures/all_1927_sequences.fasta"}
+DENOVO_RMSD="${RESULT_ROOT}/denovo_vs_pfam_rmsd_results_with_coverage.csv"
+RANDOM_CSV=${RANDOM_CSV:-"${RESULT_ROOT}/random_pfam_vs_denovo_10k_coverage80.csv"}
 mkdir -p "$RESULT_ROOT"
 
-for required_file in "$OVERLAP20" "$TASK20" "${HH_ROOT}/hhsuite20.csv"; do
-  if [[ ! -f "$required_file" ]]; then
-    echo "Required HHsearch preprocessing output not found: $required_file" >&2
-    echo "Run ../hhsearch_comparison/run_hhsearch_preprocessing.sh first." >&2
-    exit 1
-  fi
+for required_dir in "$PRODIVE_PFAM_RUNTIME_ROOT" "$DENOVO_PDB_DIR"; do
+  [[ -d "$required_dir" ]] || { echo "Input directory not found: $required_dir" >&2; exit 1; }
 done
-
-OVERWRITE_ARGS=()
-if [[ "${OVERWRITE:-0}" == "1" ]]; then
-  OVERWRITE_ARGS+=(--overwrite)
+[[ -f "$DENOVO_INPUT_CSV" ]] || { echo "Input CSV not found: $DENOVO_INPUT_CSV" >&2; exit 1; }
+FASTA_ARGS=()
+if [[ -n "$DENOVO_FASTA" ]]; then
+  [[ -f "$DENOVO_FASTA" ]] || { echo "FASTA not found: $DENOVO_FASTA. Set DENOVO_FASTA='' to use automatic chain selection." >&2; exit 1; }
+  FASTA_ARGS+=(--fasta-mapping-file "$DENOVO_FASTA")
 fi
 
-SHARED_PRODIVE_RMSD="${RESULT_ROOT}/false_rows_rmsd_HYBRID_PDB_AF.csv"
-HHSEARCH_ONLY_RMSD="${RESULT_ROOT}/hhsuite_only_rmsd_HYBRID_PDB_AF.csv"
-SHARED_HH_RMSD="${RESULT_ROOT}/false_rows_HH_segments_rmsd_HYBRID_PDB_AF.csv"
-PRODIVE_ONLY_STANDARD="${RESULT_ROOT}/Top_100%_final_novel_rmsd_from_selected_results.standard.csv"
-DENOVO_RMSD="${RESULT_ROOT}/denovo_vs_pfam_rmsd_results_with_coverage.csv"
-
-"$PYTHON" "$MODULE_ROOT/scripts/01_rmsd_shared_prodive_segments.py" \
-  --ref-csv "$OVERLAP20" \
+"$PYTHON" "$MODULE_ROOT/scripts/01_rmsd_denovo_pfam.py" \
+  --input-csv "$DENOVO_INPUT_CSV" \
+  --denovo-pdb-dir "$DENOVO_PDB_DIR" \
   --pfam-dir "$PRODIVE_PFAM_RUNTIME_ROOT" \
-  --output-csv "$SHARED_PRODIVE_RMSD" \
-  "${OVERWRITE_ARGS[@]}"
-
-"$PYTHON" "$MODULE_ROOT/scripts/02_rmsd_hhsearch_only.py" \
-  --task-csv "$TASK20" \
-  --pfam-dir "$PRODIVE_PFAM_RUNTIME_ROOT" \
-  --output-csv "$HHSEARCH_ONLY_RMSD" \
-  "${OVERWRITE_ARGS[@]}"
-
-"$PYTHON" "$MODULE_ROOT/scripts/03_rmsd_shared_hhsearch_segments.py" \
-  --ref-csv "$OVERLAP20" \
-  --pfam-dir "$PRODIVE_PFAM_RUNTIME_ROOT" \
-  --output-csv "$SHARED_HH_RMSD" \
-  "${OVERWRITE_ARGS[@]}"
-
-"$PYTHON" "$MODULE_ROOT/scripts/04_rmsd_prodive_only_pipeline.py" \
-  --input-csv "$OVERLAP20" \
-  --pfam-dir "$PRODIVE_PFAM_RUNTIME_ROOT" \
-  --output-dir "$RESULT_ROOT" \
-  --selection-csv "${RESULT_ROOT}/prodive_only_representative_selection.csv" \
-  --rmsd-csv "${RESULT_ROOT}/prodive_only_rmsd_from_selected.csv" \
-  --standard-csv "$PRODIVE_ONLY_STANDARD" \
-  --num-workers "${WORKERS:-40}"
-
-"$PYTHON" "$MODULE_ROOT/scripts/05_rmsd_denovo_pfam.py" \
-  --input-csv "${PRODIVE_DATA_ROOT}/shared/denovo_global_high_score_summary_fin.csv" \
-  --denovo-pdb-dir "${PRODIVE_DATA_ROOT}/shared/structures/denovo_structures/downloaded_denovo_pdbs" \
-  --fasta-mapping-file "${PRODIVE_DATA_ROOT}/shared/structures/denovo_structures/all_1927_sequences.fasta" \
-  --pfam-dir "$PRODIVE_PFAM_RUNTIME_ROOT" \
+  "${FASTA_ARGS[@]}" \
+  --segment-mode "${SEGMENT_MODE:-first}" \
   --output-csv "$DENOVO_RMSD"
 
-if [[ "${FILTER_PROB70:-1}" == "1" ]]; then
-  "$PYTHON" "$MODULE_ROOT/scripts/06_filter_rmsd_by_hhsearch_probability.py" \
-    --hhsuite-csv "${HH_ROOT}/hhsuite20.csv" \
-    --overlap-csv "$OVERLAP20" \
-    --hhsuite-only-rmsd "$HHSEARCH_ONLY_RMSD" \
-    --shared-prodive-rmsd "$SHARED_PRODIVE_RMSD" \
-    --shared-hh-rmsd "$SHARED_HH_RMSD" \
-    --prob-threshold 70 \
-    --output-dir "$RESULT_ROOT"
+if [[ "${RUN_RANDOM_CONTROLS:-0}" == "1" ]]; then
+  SEED_ARGS=()
+  if [[ -n "${RANDOM_SEED:-}" ]]; then SEED_ARGS+=(--seed "$RANDOM_SEED"); fi
+  "$PYTHON" "$MODULE_ROOT/scripts/02_sample_random_denovo_pfam_pairs.py" \
+    --pfam-dir "$PRODIVE_PFAM_RUNTIME_ROOT" \
+    --denovo-pdb-dir "$DENOVO_PDB_DIR" \
+    --output-csv "$RANDOM_CSV" \
+    --aligned-lengths "${ALIGNED_LENGTHS:-8,9,10,11,12,13}" \
+    --per-length-quota "${PER_LENGTH_QUOTA:-10000}" \
+    --coverage-threshold "${COVERAGE_THRESHOLD:-0.8}" \
+    --input-window-min "${INPUT_WINDOW_MIN:-8}" \
+    --input-window-max "${INPUT_WINDOW_MAX:-20}" \
+    --require-substring "${PFAM_PDB_SUBSTRING-model}" \
+    --workers "${WORKERS:-20}" \
+    "${SEED_ARGS[@]}"
+fi
+
+if [[ "${RUN_COMPARISON:-0}" == "1" ]]; then
+  [[ -f "$RANDOM_CSV" ]] || { echo "Random-control CSV not found: $RANDOM_CSV. Set RUN_RANDOM_CONTROLS=1 or provide RANDOM_CSV." >&2; exit 1; }
+  "$PYTHON" "$MODULE_ROOT/scripts/04_compare_real_random_core.py" \
+    --real-csv "$DENOVO_RMSD" --random-csv "$RANDOM_CSV" \
+    --core-lengths "${ALIGNED_LENGTHS:-8,9,10,11,12,13}" \
+    --coverage-threshold "${COVERAGE_THRESHOLD:-0.8}" \
+    --output-stats-csv "${RESULT_ROOT}/denovo_pfam_real_random_core_summary.csv" \
+    --output-plot "${RESULT_ROOT}/denovo_pfam_real_vs_random.png" \
+    --plot-title "Core region comparison: de novo-Pfam real vs. random"
+  "$PYTHON" "$MODULE_ROOT/scripts/05_welch_ttest_from_stats.py" \
+    --stats-csv "${RESULT_ROOT}/denovo_pfam_real_random_core_summary.csv" \
+    --output-csv "${RESULT_ROOT}/denovo_pfam_welch_ttest.csv"
 fi

@@ -1,0 +1,2 @@
+key,path,file_stem,xlim_min,xlim_max,ylim_min,ylim_max,show_rmsd_lines,show_core_box,show_band_percentages,show_broad_count,title
+denovo_pfam,data/rmsd_inputs/denovo_vs_pfam_rmsd_results_with_coverage.csv,denovo_pfam_rmsd_density,0,30,0,6,true,true,true,true,

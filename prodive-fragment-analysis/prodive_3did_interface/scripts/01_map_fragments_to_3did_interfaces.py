@@ -1,27 +1,35 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Map ProDive Pfam–Pfam fragments to residue contacts in ``3did_flat``.
+"""Map ProDive Pfam-Pfam fragments to 3did complex-interface residues.
 
-Each HMM segment is projected through the local Pfam seed alignment onto an
-experimental PDB chain. The mapped residues are compared with 3did contact
-positions, classified as ``NonInterface``, ``InterfacePartial``, or
-``InterfaceMajor``, and evaluated against same-chain, same-length random
-windows. Row-level, fragment-side, and summary outputs are written.
+Map local HHM states through Pfam seed sequences onto experimental PDB chains.
+Evaluate observed fragments and matched same-seed-domain, same-length random
+windows with the same union across structures, excluding the observed window.
+Write row-level and side-level annotations, a text summary, threshold-sensitivity
+statistics, and continuous real-versus-random comparisons. Confidence intervals
+and directional tests account for the two sides sharing an input Row_ID.
+
+See ../README.md and --help for inputs, options, and output definitions.
 """
 
 from __future__ import annotations
 
 import argparse
+import csv
 import gzip
 import os
 import re
 import sys
 import glob
+import traceback
 import random
 import hashlib
+import math
 from collections import defaultdict, OrderedDict
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
+from pathlib import Path
+from statistics import NormalDist
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 import numpy as np
@@ -130,6 +138,35 @@ def parse_segment_pair_from_row(row: Dict[str, Any]) -> Optional[Tuple[Tuple[int
     if main_range and sub_range:
         return main_range, sub_range
     return None
+
+
+def parse_residue_list(value: Any) -> Set[int]:
+    """
+    Parse residue lists such as: "1,2,3", "1 2 3", "1;2;5-8".
+    Insertion codes are ignored; only the integer part is used.
+    """
+    if value is None or pd.isna(value):
+        return set()
+    text = str(value).strip()
+    if not text:
+        return set()
+    out: Set[int] = set()
+    for token in re.split(r"[,;\s]+", text):
+        token = token.strip()
+        if not token:
+            continue
+        m_range = re.match(r"^(-?\d+)[A-Za-z]?\s*-\s*(-?\d+)[A-Za-z]?$", token)
+        if m_range:
+            a, b = int(m_range.group(1)), int(m_range.group(2))
+            if a <= b:
+                out.update(range(a, b + 1))
+            else:
+                out.update(range(b, a + 1))
+            continue
+        m_int = re.match(r"^(-?\d+)", token)
+        if m_int:
+            out.add(int(m_int.group(1)))
+    return out
 
 
 def safe_three_to_one(resname: str) -> str:
@@ -254,6 +291,7 @@ def add_complex_side(
 
 def parse_3did_flat(
     path: str,
+    exclude_same_pfam_pairs: bool = False,
 ) -> Tuple[Dict[Tuple[str, str, str], Set[int]], Dict[str, Set[Tuple[str, str]]], Dict[Tuple[str, str, str], List[Dict[str, Any]]]]:
     """
     Parse 3did_flat.gz.
@@ -278,6 +316,9 @@ def parse_3did_flat(
             current_instance = None
             return
         pfam_a, pfam_b = current_pfams
+        if exclude_same_pfam_pairs and pfam_a == pfam_b:
+            current_instance = None
+            return
         chain_a = current_instance.get("chain_a")
         chain_b = current_instance.get("chain_b")
         pair_type, pfam_relation, chain_relation = classify_complex_pair_type(pfam_a, pfam_b, chain_a, chain_b)
@@ -400,6 +441,85 @@ def parse_3did_flat(
         f"[3did] parsed IDs={n_id:,}, structural instances={n_3d:,}, contact lines={n_contact:,}, "
         f"indexed sides={len(index):,}, Pfams={len(by_pfam):,}"
     )
+    return dict(index), dict(by_pfam), dict(meta_index)
+
+
+def first_existing_col(row: pd.Series, names: List[str]) -> Optional[Any]:
+    for n in names:
+        if n in row and pd.notna(row[n]):
+            return row[n]
+    return None
+
+
+def parse_complex_tsv(
+    path: str,
+) -> Tuple[Dict[Tuple[str, str, str], Set[int]], Dict[str, Set[Tuple[str, str]]], Dict[Tuple[str, str, str], List[Dict[str, Any]]]]:
+    """
+    Parse a normalized complex-interface table.
+
+    Accepted one-side columns:
+        pfam_id, pdb_id, chain_id, interface_residues
+
+    Accepted paired columns:
+        pfam_a, pdb_id, chain_a, interface_residues_a,
+        pfam_b, chain_b, interface_residues_b
+    """
+    df = pd.read_csv(path, sep=None, engine="python")
+    index: Dict[Tuple[str, str, str], Set[int]] = defaultdict(set)
+    by_pfam: Dict[str, Set[Tuple[str, str]]] = defaultdict(set)
+    meta_index: Dict[Tuple[str, str, str], List[Dict[str, Any]]] = defaultdict(list)
+
+    for ridx, row in df.iterrows():
+        pdb = first_existing_col(row, ["pdb_id", "PDB", "PDB_ID", "pdb"])
+        if pdb is None:
+            continue
+
+        pfam = first_existing_col(row, ["pfam_id", "Pfam", "PFAM", "pfam"])
+        chain = first_existing_col(row, ["chain_id", "chain", "Chain", "CHAIN"])
+        residues = first_existing_col(row, ["interface_residues", "interface_positions", "residues"])
+        if pfam is not None and chain is not None and residues is not None:
+            add_complex_side(
+                index, by_pfam, meta_index, parse_family_id(pfam), str(pdb), str(chain), parse_residue_list(residues),
+                source="complex_tsv", instance_id=f"complex_tsv:{ridx}", pair_type="unknown_complex_pair_type",
+                pfam_relation="unknown_pfam_relation", chain_relation="unknown_chain_relation"
+            )
+            continue
+
+        pfam_a = first_existing_col(row, ["pfam_a", "pfam1", "domain_a", "domain1"])
+        pfam_b = first_existing_col(row, ["pfam_b", "pfam2", "domain_b", "domain2"])
+        chain_a = first_existing_col(row, ["chain_a", "chain1"])
+        chain_b = first_existing_col(row, ["chain_b", "chain2"])
+        res_a = first_existing_col(row, ["interface_residues_a", "residues_a", "interface_positions_a"])
+        res_b = first_existing_col(row, ["interface_residues_b", "residues_b", "interface_positions_b"])
+        pair_type, pfam_relation, chain_relation = classify_complex_pair_type(str(pfam_a), str(pfam_b), str(chain_a), str(chain_b))
+        if pfam_a is not None and chain_a is not None and res_a is not None:
+            add_complex_side(index, by_pfam, meta_index, parse_family_id(pfam_a), str(pdb), str(chain_a), parse_residue_list(res_a),
+                             partner_pfam=parse_family_id(pfam_b), partner_chain=str(chain_b) if chain_b is not None else None,
+                             source="complex_tsv", instance_id=f"complex_tsv:{ridx}", pair_type=pair_type,
+                             pfam_relation=pfam_relation, chain_relation=chain_relation)
+        if pfam_b is not None and chain_b is not None and res_b is not None:
+            add_complex_side(index, by_pfam, meta_index, parse_family_id(pfam_b), str(pdb), str(chain_b), parse_residue_list(res_b),
+                             partner_pfam=parse_family_id(pfam_a), partner_chain=str(chain_a) if chain_a is not None else None,
+                             source="complex_tsv", instance_id=f"complex_tsv:{ridx}", pair_type=pair_type,
+                             pfam_relation=pfam_relation, chain_relation=chain_relation)
+
+    eprint(f"[complex-tsv] indexed sides={len(index):,}, Pfams={len(by_pfam):,}")
+    return dict(index), dict(by_pfam), dict(meta_index)
+
+
+def merge_complex_indices(
+    items: List[Tuple[Dict[Tuple[str, str, str], Set[int]], Dict[str, Set[Tuple[str, str]]], Dict[Tuple[str, str, str], List[Dict[str, Any]]]]]
+) -> Tuple[Dict[Tuple[str, str, str], Set[int]], Dict[str, Set[Tuple[str, str]]], Dict[Tuple[str, str, str], List[Dict[str, Any]]]]:
+    index: Dict[Tuple[str, str, str], Set[int]] = defaultdict(set)
+    by_pfam: Dict[str, Set[Tuple[str, str]]] = defaultdict(set)
+    meta_index: Dict[Tuple[str, str, str], List[Dict[str, Any]]] = defaultdict(list)
+    for idx, by, meta in items:
+        for k, vals in idx.items():
+            index[k].update(vals)
+        for pf, vals in by.items():
+            by_pfam[pf].update(vals)
+        for k, vals in meta.items():
+            meta_index[k].extend(vals)
     return dict(index), dict(by_pfam), dict(meta_index)
 
 
@@ -705,8 +825,56 @@ def map_seed_abs_positions_to_pdb_numbers(
 # =============================================================================
 # Fragment-side evaluation
 # =============================================================================
+DEFAULT_SENSITIVITY_THRESHOLDS = (0.10, 0.20, 0.30, 0.40, 0.50)
+
+
+def parse_sensitivity_thresholds(value: Any) -> List[float]:
+    """Parse, validate, sort, and deduplicate interface-fraction thresholds."""
+    if value is None:
+        values = list(DEFAULT_SENSITIVITY_THRESHOLDS)
+    elif isinstance(value, (list, tuple, np.ndarray)):
+        values = [float(x) for x in value]
+    else:
+        values = [float(x.strip()) for x in str(value).split(",") if x.strip()]
+    if not values:
+        raise ValueError("At least one sensitivity threshold is required.")
+    if any((not np.isfinite(x)) or x < 0.0 or x > 1.0 for x in values):
+        raise ValueError("Sensitivity thresholds must be finite values between 0 and 1.")
+    return sorted(set(round(float(x), 10) for x in values))
+
+
+def get_analysis_thresholds() -> List[float]:
+    values = getattr(G_ARGS, "analysis_thresholds", DEFAULT_SENSITIVITY_THRESHOLDS)
+    return parse_sensitivity_thresholds(values)
+
+
+def threshold_tag(threshold: float) -> str:
+    """Stable column suffix; e.g. 0.30 -> T030 and 1.00 -> T100."""
+    return f"T{int(round(float(threshold) * 100)):03d}"
+
+
+def empty_random_result() -> Dict[str, Any]:
+    out: Dict[str, Any] = {
+        "random_n": 0,
+        "random_mean": np.nan,
+        "random_median": np.nan,
+        "random_p_ge": np.nan,
+        "random_p_le": np.nan,
+        "random_p_two_sided": np.nan,
+        "random_z": np.nan,
+        "random_enrichment": np.nan,
+        "random_mean_difference": np.nan,
+    }
+    for threshold in get_analysis_thresholds():
+        tag = threshold_tag(threshold)
+        out[f"real_ge_{tag}"] = np.nan
+        out[f"random_count_ge_{tag}"] = 0
+        out[f"random_prop_ge_{tag}"] = np.nan
+    return out
+
+
 def default_side_result(status: str, note: str = "") -> Dict[str, Any]:
-    return {
+    out: Dict[str, Any] = {
         "Status": status,
         "Note": note,
         "Family": "",
@@ -740,9 +908,18 @@ def default_side_result(status: str, note: str = "") -> Dict[str, Any]:
         "Random_Mean_Interface_Fraction": np.nan,
         "Random_Median_Interface_Fraction": np.nan,
         "Random_P_GE": np.nan,
+        "Random_P_LE": np.nan,
+        "Random_P_Two_Sided": np.nan,
         "Random_Z": np.nan,
         "Random_Enrichment": np.nan,
+        "Random_Mean_Difference": np.nan,
     }
+    for threshold in get_analysis_thresholds():
+        tag = threshold_tag(threshold)
+        out[f"Real_GE_{tag}"] = np.nan
+        out[f"Random_Count_GE_{tag}"] = 0
+        out[f"Random_Prop_GE_{tag}"] = np.nan
+    return out
 
 
 def classify_interface(interface_fraction: float, th_major: float, th_partial: float) -> str:
@@ -774,20 +951,14 @@ def random_control_same_chain(
     hmm_len: int,
     window_len: int,
     real_interface_fraction: float,
+    real_seq_start: int,
     min_struct_coverage: float,
     seed_parts: Tuple[Any, ...],
 ) -> Dict[str, Any]:
     args = G_ARGS
     random_n = int(getattr(args, "random_n", 0))
     if random_n <= 0 or not used_maps or window_len <= 0:
-        return {
-            "random_n": 0,
-            "random_mean": np.nan,
-            "random_median": np.nan,
-            "random_p_ge": np.nan,
-            "random_z": np.nan,
-            "random_enrichment": np.nan,
-        }
+        return empty_random_result()
 
     rng = random.Random(stable_random_seed(*seed_parts))
     max_attempts = max(random_n * int(getattr(args, "random_max_attempts_per_sample", 50)), random_n)
@@ -796,42 +967,51 @@ def random_control_same_chain(
 
     eligible_maps = [m for m in used_maps if int(m["full_seq_len"]) >= window_len]
     if not eligible_maps:
-        return {
-            "random_n": 0,
-            "random_mean": np.nan,
-            "random_median": np.nan,
-            "random_p_ge": np.nan,
-            "random_z": np.nan,
-            "random_enrichment": np.nan,
-        }
+        return empty_random_result()
+
+    # All maps describe the same selected Pfam seed sequence in different
+    # experimental structures. Restrict to the same coordinate frame, then
+    # evaluate every random window across the union of those structures exactly
+    # as the real fragment is evaluated. The previous implementation selected
+    # only one structure per random draw, which did not match the real union rule.
+    frame_start = int(eligible_maps[0]["seed_abs_start"])
+    frame_len = int(eligible_maps[0]["full_seq_len"])
+    eligible_maps = [
+        m for m in eligible_maps
+        if int(m["seed_abs_start"]) == frame_start and int(m["full_seq_len"]) == frame_len
+    ]
+    possible_offsets = [
+        q0 for q0 in range(0, frame_len - window_len + 1)
+        if frame_start + q0 != int(real_seq_start)
+    ]
+    if not possible_offsets:
+        return empty_random_result()
 
     while len(vals) < random_n and attempts < max_attempts:
         attempts += 1
-        um = rng.choice(eligible_maps)
-        full_len = int(um["full_seq_len"])
-        q0 = rng.randint(0, full_len - window_len)
-        start_abs = int(um["seed_abs_start"]) + q0
-        positions = range(start_abs, start_abs + window_len)
-        seed_to_pdb = um["seed_to_pdb"]
-        interface_pdb_nums = um["interface_pdb_nums"]
-        mapped = [p for p in positions if p in seed_to_pdb]
-        if not mapped:
+        q0 = rng.choice(possible_offsets)
+        start_abs = frame_start + q0
+        positions = set(range(start_abs, start_abs + window_len))
+        union_mapped: Set[int] = set()
+        union_interface: Set[int] = set()
+        for um in eligible_maps:
+            seed_to_pdb = um["seed_to_pdb"]
+            interface_pdb_nums = um["interface_pdb_nums"]
+            mapped_here = {p for p in positions if p in seed_to_pdb}
+            interface_here = {
+                p for p in mapped_here if seed_to_pdb[p] in interface_pdb_nums
+            }
+            union_mapped.update(mapped_here)
+            union_interface.update(interface_here)
+        if not union_mapped:
             continue
-        struct_cov = len(mapped) / float(hmm_len) if hmm_len > 0 else 0.0
+        struct_cov = len(union_mapped) / float(hmm_len) if hmm_len > 0 else 0.0
         if struct_cov < min_struct_coverage:
             continue
-        n_interface = sum(1 for p in mapped if seed_to_pdb[p] in interface_pdb_nums)
-        vals.append(n_interface / float(len(mapped)))
+        vals.append(len(union_interface) / float(len(union_mapped)))
 
     if not vals:
-        return {
-            "random_n": 0,
-            "random_mean": np.nan,
-            "random_median": np.nan,
-            "random_p_ge": np.nan,
-            "random_z": np.nan,
-            "random_enrichment": np.nan,
-        }
+        return empty_random_result()
 
     arr = np.asarray(vals, dtype=float)
     mean = float(np.mean(arr))
@@ -839,16 +1019,28 @@ def random_control_same_chain(
     std = float(np.std(arr, ddof=1)) if len(arr) > 1 else 0.0
     real = float(real_interface_fraction) if not pd.isna(real_interface_fraction) else np.nan
     p_ge = float((np.sum(arr >= real) + 1) / (len(arr) + 1)) if not pd.isna(real) else np.nan
+    p_le = float((np.sum(arr <= real) + 1) / (len(arr) + 1)) if not pd.isna(real) else np.nan
+    p_two_sided = min(1.0, 2.0 * min(p_ge, p_le)) if not pd.isna(real) else np.nan
     z = float((real - mean) / std) if std > 0 and not pd.isna(real) else np.nan
     enrichment = float(real / mean) if mean > 0 and not pd.isna(real) else np.nan
-    return {
+    out: Dict[str, Any] = {
         "random_n": int(len(arr)),
         "random_mean": mean,
         "random_median": median,
         "random_p_ge": p_ge,
+        "random_p_le": p_le,
+        "random_p_two_sided": p_two_sided,
         "random_z": z,
         "random_enrichment": enrichment,
+        "random_mean_difference": float(real - mean) if not pd.isna(real) else np.nan,
     }
+    for threshold in get_analysis_thresholds():
+        tag = threshold_tag(threshold)
+        count_ge = int(np.sum(arr >= threshold))
+        out[f"real_ge_{tag}"] = int(real >= threshold) if not pd.isna(real) else np.nan
+        out[f"random_count_ge_{tag}"] = count_ge
+        out[f"random_prop_ge_{tag}"] = count_ge / float(len(arr))
+    return out
 
 
 def evaluate_candidate_against_complexes(
@@ -942,16 +1134,10 @@ def evaluate_candidate_against_complexes(
         hmm_len=hmm_len,
         window_len=int(candidate["seq_len"]),
         real_interface_fraction=interface_fraction,
+        real_seq_start=int(candidate["seq_start"]),
         min_struct_coverage=min_struct_coverage,
         seed_parts=(pfam_id, candidate.get("uid"), candidate.get("seq_start"), candidate.get("seq_end"), ";".join(sorted(used_pdb_ids)), ";".join(sorted(used_chains))),
-    ) if status == "OK" else {
-        "random_n": 0,
-        "random_mean": np.nan,
-        "random_median": np.nan,
-        "random_p_ge": np.nan,
-        "random_z": np.nan,
-        "random_enrichment": np.nan,
-    }
+    ) if status == "OK" else empty_random_result()
 
     return {
         "status": status,
@@ -969,12 +1155,7 @@ def evaluate_candidate_against_complexes(
         "has_interchain_different_pfam": "interchain_different_pfam" in pair_types,
         "has_interchain_same_pfam": "interchain_same_pfam" in pair_types,
         "has_intrachain_domain_contact": "intrachain_domain_contact" in pair_types,
-        "random_n": rand["random_n"],
-        "random_mean": rand["random_mean"],
-        "random_median": rand["random_median"],
-        "random_p_ge": rand["random_p_ge"],
-        "random_z": rand["random_z"],
-        "random_enrichment": rand["random_enrichment"],
+        **rand,
     }
 
 
@@ -1113,10 +1294,21 @@ def evaluate_side(family_value: Any, segment: Tuple[int, int]) -> Dict[str, Any]
             "Random_Mean_Interface_Fraction": round(float(ev.get("random_mean")), 4) if not pd.isna(ev.get("random_mean")) else np.nan,
             "Random_Median_Interface_Fraction": round(float(ev.get("random_median")), 4) if not pd.isna(ev.get("random_median")) else np.nan,
             "Random_P_GE": round(float(ev.get("random_p_ge")), 6) if not pd.isna(ev.get("random_p_ge")) else np.nan,
+            "Random_P_LE": round(float(ev.get("random_p_le")), 6) if not pd.isna(ev.get("random_p_le")) else np.nan,
+            "Random_P_Two_Sided": round(float(ev.get("random_p_two_sided")), 6) if not pd.isna(ev.get("random_p_two_sided")) else np.nan,
             "Random_Z": round(float(ev.get("random_z")), 4) if not pd.isna(ev.get("random_z")) else np.nan,
             "Random_Enrichment": round(float(ev.get("random_enrichment")), 4) if not pd.isna(ev.get("random_enrichment")) else np.nan,
+            "Random_Mean_Difference": round(float(ev.get("random_mean_difference")), 6) if not pd.isna(ev.get("random_mean_difference")) else np.nan,
         }
     )
+    for threshold in get_analysis_thresholds():
+        tag = threshold_tag(threshold)
+        real_value = ev.get(f"real_ge_{tag}")
+        random_count = ev.get(f"random_count_ge_{tag}", 0)
+        random_prop = ev.get(f"random_prop_ge_{tag}")
+        base[f"Real_GE_{tag}"] = int(real_value) if not pd.isna(real_value) else np.nan
+        base[f"Random_Count_GE_{tag}"] = int(random_count)
+        base[f"Random_Prop_GE_{tag}"] = round(float(random_prop), 6) if not pd.isna(random_prop) else np.nan
     return base
 
 
@@ -1172,72 +1364,239 @@ def worker_init(args_obj: argparse.Namespace, complex_index, complex_by_pfam, co
 # =============================================================================
 # Reporting
 # =============================================================================
-def write_side_level_file(df: pd.DataFrame, output_side_csv: str) -> None:
+def build_side_level_dataframe(df: pd.DataFrame) -> pd.DataFrame:
+    base_keys = [
+        "Family", "Status", "Interface_Class", "HMM_Start", "HMM_End", "HMM_Len",
+        "MSA_Start", "MSA_End", "Seq_UID", "Seq_Header", "Seq_Start", "Seq_End",
+        "Seq_Len", "SeqLen_vs_HMMLen", "PDB_IDs", "Chains", "Complex_Instance_Count",
+        "Struct_Coverage_vs_HMM", "Mapped_Fragment_Residues", "Interface_Count",
+        "Interface_Fraction", "Complex_Partner_Pfams", "Complex_Partner_Chains",
+        "Complex_Pair_Types", "Different_Protein_Proxy",
+        "Has_Interchain_Different_Pfam", "Has_Interchain_Same_Pfam",
+        "Has_Intrachain_Domain_Contact", "Random_N",
+        "Random_Mean_Interface_Fraction", "Random_Median_Interface_Fraction",
+        "Random_P_GE", "Random_P_LE", "Random_P_Two_Sided", "Random_Z",
+        "Random_Enrichment", "Random_Mean_Difference", "Note",
+    ]
+    threshold_keys: List[str] = []
+    for threshold in get_analysis_thresholds():
+        tag = threshold_tag(threshold)
+        threshold_keys.extend([
+            f"Real_GE_{tag}",
+            f"Random_Count_GE_{tag}",
+            f"Random_Prop_GE_{tag}",
+        ])
+
     rows: List[Dict[str, Any]] = []
     for _, row in df.iterrows():
         for side in ["Main", "Sub"]:
+            side_row: Dict[str, Any] = {"Row_ID": row.get("Row_ID"), "Side": side}
+            for key in base_keys + threshold_keys:
+                side_row[key] = row.get(f"{side}_{key}")
+            rows.append(side_row)
+    return pd.DataFrame(rows)
+
+
+def write_side_level_file(df: pd.DataFrame, output_side_csv: str) -> pd.DataFrame:
+    sdf = build_side_level_dataframe(df)
+    sdf.to_csv(output_side_csv, index=False)
+    return sdf
+
+
+def boolean_series(values: pd.Series) -> pd.Series:
+    if pd.api.types.is_bool_dtype(values):
+        return values.fillna(False)
+    return values.fillna(False).astype(str).str.strip().str.lower().isin({"true", "1", "yes", "y"})
+
+
+def analysis_subsets(sdf: pd.DataFrame) -> OrderedDict[str, pd.Series]:
+    ok = sdf["Status"].eq("OK")
+    proxy = sdf["Different_Protein_Proxy"].fillna("").astype(str)
+    has_diff = boolean_series(sdf["Has_Interchain_Different_Pfam"])
+    return OrderedDict(
+        [
+            ("All_OK", ok),
+            ("Any_Interchain_Different_Pfam", ok & has_diff),
+            ("Strict_Interchain_Different_Pfam_Only", ok & proxy.eq("YES_DIFFERENT_PFAM_INTERCHAIN")),
+            ("Interchain_Same_Pfam_Only", ok & proxy.eq("UNCERTAIN_SAME_PFAM_INTERCHAIN")),
+            ("Intrachain_Only", ok & proxy.eq("NO_INTRACHAIN_DOMAIN_CONTACT")),
+        ]
+    )
+
+
+def normal_test_pvalues(z_value: float) -> Tuple[float, float, float]:
+    if not np.isfinite(z_value):
+        return np.nan, np.nan, np.nan
+    p_enrichment = 0.5 * math.erfc(z_value / math.sqrt(2.0))
+    p_depletion = 0.5 * math.erfc(-z_value / math.sqrt(2.0))
+    p_two_sided = min(1.0, 2.0 * min(p_enrichment, p_depletion))
+    return float(p_enrichment), float(p_depletion), float(p_two_sided)
+
+
+def clustered_mean_ci(
+    values: np.ndarray,
+    cluster_ids: np.ndarray,
+    z_crit: float,
+    clamp: Optional[Tuple[float, float]] = None,
+) -> Tuple[float, float, float, float, int]:
+    """Mean, cluster-robust CI, SE, and cluster count (clusters are ProDive rows)."""
+    arr = np.asarray(values, dtype=float)
+    clusters = np.asarray(cluster_ids)
+    valid = np.isfinite(arr) & pd.notna(clusters)
+    arr = arr[valid]
+    clusters = clusters[valid]
+    if len(arr) == 0:
+        return np.nan, np.nan, np.nan, np.nan, 0
+    mean = float(np.mean(arr))
+    unique_clusters = pd.unique(clusters)
+    n_clusters = int(len(unique_clusters))
+    if n_clusters < 2:
+        return mean, np.nan, np.nan, np.nan, n_clusters
+    centered = arr - mean
+    cluster_sums = np.asarray(
+        [float(np.sum(centered[clusters == cluster])) for cluster in unique_clusters],
+        dtype=float,
+    )
+    se = math.sqrt((n_clusters / float(n_clusters - 1)) * float(np.sum(cluster_sums ** 2))) / float(len(arr))
+    low, high = mean - z_crit * se, mean + z_crit * se
+    if clamp is not None:
+        low, high = max(clamp[0], low), min(clamp[1], high)
+    return mean, low, high, se, n_clusters
+
+
+def calculate_threshold_sensitivity(sdf: pd.DataFrame, confidence_level: float) -> pd.DataFrame:
+    z_crit = NormalDist().inv_cdf(0.5 + confidence_level / 2.0)
+    rows: List[Dict[str, Any]] = []
+    random_n_all = pd.to_numeric(sdf["Random_N"], errors="coerce")
+
+    for subset_name, subset_mask in analysis_subsets(sdf).items():
+        for threshold in get_analysis_thresholds():
+            tag = threshold_tag(threshold)
+            real_col = pd.to_numeric(sdf[f"Real_GE_{tag}"], errors="coerce")
+            random_count_col = pd.to_numeric(sdf[f"Random_Count_GE_{tag}"], errors="coerce")
+            random_prop_col = pd.to_numeric(sdf[f"Random_Prop_GE_{tag}"], errors="coerce")
+            valid = subset_mask & real_col.notna() & random_prop_col.notna() & (random_n_all > 0)
+            n = int(valid.sum())
+            if n == 0:
+                continue
+
+            real_values = real_col.loc[valid].to_numpy(dtype=float)
+            random_props = random_prop_col.loc[valid].to_numpy(dtype=float)
+            random_counts = random_count_col.loc[valid].to_numpy(dtype=float)
+            random_ns = random_n_all.loc[valid].to_numpy(dtype=float)
+            cluster_ids = sdf.loc[valid, "Row_ID"].to_numpy()
+            paired_diff = real_values - random_props
+
+            real_count = int(np.sum(real_values))
+            real_prop = real_count / float(n)
+            _, real_ci_low, real_ci_high, _, n_clusters = clustered_mean_ci(
+                real_values, cluster_ids, z_crit, clamp=(0.0, 1.0)
+            )
+            random_mean_prop, random_ci_low, random_ci_high, _, _ = clustered_mean_ci(
+                random_props, cluster_ids, z_crit, clamp=(0.0, 1.0)
+            )
+            diff_mean, diff_ci_low, diff_ci_high, diff_se, _ = clustered_mean_ci(
+                paired_diff, cluster_ids, z_crit
+            )
+            z_value = diff_mean / diff_se if diff_se > 0 else np.nan
+            p_enrich, p_deplete, p_two = normal_test_pvalues(z_value)
+            pooled_random_n = int(np.sum(random_ns))
+            pooled_random_count = int(np.sum(random_counts))
+
+            role = "Sensitivity"
+            if math.isclose(threshold, float(getattr(G_ARGS, "th_partial", 0.30)), abs_tol=1e-12):
+                role = "Interface-related cutoff"
+            if math.isclose(threshold, float(getattr(G_ARGS, "th_major", 0.50)), abs_tol=1e-12):
+                role = "InterfaceMajor cutoff"
+
             rows.append(
                 {
-                    "Row_ID": row.get("Row_ID"),
-                    "Side": side,
-                    "Family": row.get(f"{side}_Family"),
-                    "Status": row.get(f"{side}_Status"),
-                    "Interface_Class": row.get(f"{side}_Interface_Class"),
-                    "HMM_Start": row.get(f"{side}_HMM_Start"),
-                    "HMM_End": row.get(f"{side}_HMM_End"),
-                    "HMM_Len": row.get(f"{side}_HMM_Len"),
-                    "MSA_Start": row.get(f"{side}_MSA_Start"),
-                    "MSA_End": row.get(f"{side}_MSA_End"),
-                    "Seq_UID": row.get(f"{side}_Seq_UID"),
-                    "Seq_Header": row.get(f"{side}_Seq_Header"),
-                    "Seq_Start": row.get(f"{side}_Seq_Start"),
-                    "Seq_End": row.get(f"{side}_Seq_End"),
-                    "Seq_Len": row.get(f"{side}_Seq_Len"),
-                    "SeqLen_vs_HMMLen": row.get(f"{side}_SeqLen_vs_HMMLen"),
-                    "PDB_IDs": row.get(f"{side}_PDB_IDs"),
-                    "Chains": row.get(f"{side}_Chains"),
-                    "Complex_Instance_Count": row.get(f"{side}_Complex_Instance_Count"),
-                    "Struct_Coverage_vs_HMM": row.get(f"{side}_Struct_Coverage_vs_HMM"),
-                    "Mapped_Fragment_Residues": row.get(f"{side}_Mapped_Fragment_Residues"),
-                    "Interface_Count": row.get(f"{side}_Interface_Count"),
-                    "Interface_Fraction": row.get(f"{side}_Interface_Fraction"),
-                    "Complex_Partner_Pfams": row.get(f"{side}_Complex_Partner_Pfams"),
-                    "Complex_Partner_Chains": row.get(f"{side}_Complex_Partner_Chains"),
-                    "Complex_Pair_Types": row.get(f"{side}_Complex_Pair_Types"),
-                    "Different_Protein_Proxy": row.get(f"{side}_Different_Protein_Proxy"),
-                    "Has_Interchain_Different_Pfam": row.get(f"{side}_Has_Interchain_Different_Pfam"),
-                    "Has_Interchain_Same_Pfam": row.get(f"{side}_Has_Interchain_Same_Pfam"),
-                    "Has_Intrachain_Domain_Contact": row.get(f"{side}_Has_Intrachain_Domain_Contact"),
-                    "Random_N": row.get(f"{side}_Random_N"),
-                    "Random_Mean_Interface_Fraction": row.get(f"{side}_Random_Mean_Interface_Fraction"),
-                    "Random_Median_Interface_Fraction": row.get(f"{side}_Random_Median_Interface_Fraction"),
-                    "Random_P_GE": row.get(f"{side}_Random_P_GE"),
-                    "Random_Z": row.get(f"{side}_Random_Z"),
-                    "Random_Enrichment": row.get(f"{side}_Random_Enrichment"),
-                    "Note": row.get(f"{side}_Note"),
+                    "Subset": subset_name,
+                    "Threshold": threshold,
+                    "Threshold_Role": role,
+                    "N_Fragment_Sides": n,
+                    "N_ProDive_Rows": n_clusters,
+                    "Real_Count_GE": real_count,
+                    "Real_Proportion_GE": real_prop,
+                    "Real_Proportion_CI_Low": real_ci_low,
+                    "Real_Proportion_CI_High": real_ci_high,
+                    "Random_Expected_Count_GE": float(np.sum(random_props)),
+                    "Random_Mean_Proportion_GE": random_mean_prop,
+                    "Random_Mean_Proportion_CI_Low": random_ci_low,
+                    "Random_Mean_Proportion_CI_High": random_ci_high,
+                    "Real_Minus_Random": diff_mean,
+                    "Difference_CI_Low": diff_ci_low,
+                    "Difference_CI_High": diff_ci_high,
+                    "Real_to_Random_Ratio": real_prop / random_mean_prop if random_mean_prop > 0 else np.nan,
+                    "Z_Paired_Difference": z_value,
+                    "P_Enrichment_One_Sided": p_enrich,
+                    "P_Depletion_One_Sided": p_deplete,
+                    "P_Two_Sided": p_two,
+                    "Random_Total_Windows": pooled_random_n,
+                    "Random_Count_GE_Pooled": pooled_random_count,
+                    "Random_Pooled_Proportion_GE": pooled_random_count / float(pooled_random_n) if pooled_random_n > 0 else np.nan,
+                    "Confidence_Level": confidence_level,
                 }
             )
-    pd.DataFrame(rows).to_csv(output_side_csv, index=False)
+    return pd.DataFrame(rows)
 
 
-def write_summary(df: pd.DataFrame, output_summary: str) -> None:
+def calculate_continuous_random_comparison(sdf: pd.DataFrame, confidence_level: float) -> pd.DataFrame:
+    z_crit = NormalDist().inv_cdf(0.5 + confidence_level / 2.0)
+    real_all = pd.to_numeric(sdf["Interface_Fraction"], errors="coerce")
+    random_all = pd.to_numeric(sdf["Random_Mean_Interface_Fraction"], errors="coerce")
+    random_n_all = pd.to_numeric(sdf["Random_N"], errors="coerce")
+    rows: List[Dict[str, Any]] = []
+
+    for subset_name, subset_mask in analysis_subsets(sdf).items():
+        valid = subset_mask & real_all.notna() & random_all.notna() & (random_n_all > 0)
+        n = int(valid.sum())
+        if n == 0:
+            continue
+        real = real_all.loc[valid].to_numpy(dtype=float)
+        random_mean = random_all.loc[valid].to_numpy(dtype=float)
+        cluster_ids = sdf.loc[valid, "Row_ID"].to_numpy()
+        diff = real - random_mean
+        diff_mean, ci_low, ci_high, se, n_clusters = clustered_mean_ci(diff, cluster_ids, z_crit)
+        z_value = diff_mean / se if se > 0 else np.nan
+        p_enrich, p_deplete, p_two = normal_test_pvalues(z_value)
+        rows.append(
+            {
+                "Subset": subset_name,
+                "N_Fragment_Sides": n,
+                "N_ProDive_Rows": n_clusters,
+                "Real_Mean_Interface_Fraction": float(np.mean(real)),
+                "Real_Median_Interface_Fraction": float(np.median(real)),
+                "Random_Mean_Interface_Fraction": float(np.mean(random_mean)),
+                "Random_Median_of_Side_Means": float(np.median(random_mean)),
+                "Mean_Paired_Difference": diff_mean,
+                "Difference_CI_Low": ci_low,
+                "Difference_CI_High": ci_high,
+                "Real_Greater_Than_Random_Count": int(np.sum(real > random_mean)),
+                "Real_Greater_Than_Random_Proportion": float(np.mean(real > random_mean)),
+                "Z_Paired_Difference": z_value,
+                "P_Enrichment_One_Sided": p_enrich,
+                "P_Depletion_One_Sided": p_deplete,
+                "P_Two_Sided": p_two,
+                "Confidence_Level": confidence_level,
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def write_summary(
+    df: pd.DataFrame,
+    output_summary: str,
+    sdf: Optional[pd.DataFrame] = None,
+    threshold_df: Optional[pd.DataFrame] = None,
+    continuous_df: Optional[pd.DataFrame] = None,
+) -> None:
     lines: List[str] = []
-    lines.append("# Pfam-Pfam 3did interface annotation summary\n")
+    lines.append("# Pfam-Pfam known-complex interface annotation summary\n")
     lines.append(f"Total rows: {len(df):,}\n")
     lines.append(f"Total fragment-sides: {len(df) * 2:,}\n")
-
-    side_records = []
-    for side in ["Main", "Sub"]:
-        cols = [
-            f"{side}_Status", f"{side}_Interface_Class", f"{side}_Interface_Fraction",
-            f"{side}_Different_Protein_Proxy", f"{side}_Complex_Pair_Types",
-            f"{side}_Random_Mean_Interface_Fraction", f"{side}_Random_P_GE", f"{side}_Random_Enrichment"
-        ]
-        existing = [c for c in cols if c in df.columns]
-        tmp = df[existing].copy()
-        tmp.columns = [c.replace(f"{side}_", "") for c in tmp.columns]
-        side_records.append(tmp)
-    sdf = pd.concat(side_records, ignore_index=True)
+    if sdf is None:
+        sdf = build_side_level_dataframe(df)
 
     lines.append("\n## Side-level status counts\n\n")
     lines.append(sdf["Status"].value_counts(dropna=False).to_string())
@@ -1259,6 +1618,34 @@ def write_summary(df: pd.DataFrame, output_summary: str) -> None:
     lines.append(df["Pair_Interface_Related_Sides"].value_counts(dropna=False).sort_index().to_string())
     lines.append("\n")
 
+    if threshold_df is not None and len(threshold_df):
+        lines.append("\n## Threshold sensitivity: Real versus matched random background\n\n")
+        lines.append(
+            "Real_Minus_Random is the paired side-level difference between the observed "
+            "threshold indicator and the matched random exceedance probability. Positive values "
+            "indicate enrichment; negative values indicate depletion. Confidence intervals and "
+            "normal-approximation p-values use ProDive Row_ID as the correlation cluster.\n\n"
+        )
+        show_cols = [
+            "Subset", "Threshold", "N_Fragment_Sides", "N_ProDive_Rows", "Real_Proportion_GE",
+            "Random_Mean_Proportion_GE", "Real_Minus_Random", "Difference_CI_Low",
+            "Difference_CI_High", "P_Enrichment_One_Sided",
+            "P_Depletion_One_Sided", "P_Two_Sided",
+        ]
+        lines.append(threshold_df[show_cols].to_string(index=False, float_format=lambda x: f"{x:.6g}"))
+        lines.append("\n")
+
+    if continuous_df is not None and len(continuous_df):
+        lines.append("\n## Continuous interface-fraction comparison\n\n")
+        show_cols = [
+            "Subset", "N_Fragment_Sides", "N_ProDive_Rows", "Real_Mean_Interface_Fraction",
+            "Random_Mean_Interface_Fraction", "Mean_Paired_Difference",
+            "Difference_CI_Low", "Difference_CI_High", "P_Enrichment_One_Sided",
+            "P_Depletion_One_Sided", "P_Two_Sided",
+        ]
+        lines.append(continuous_df[show_cols].to_string(index=False, float_format=lambda x: f"{x:.6g}"))
+        lines.append("\n")
+
     with open(output_summary, "w") as f:
         f.write("".join(lines))
 
@@ -1273,10 +1660,13 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--input-csv", required=True, help="ProDive Pfam-Pfam result CSV.")
     p.add_argument("--pfam-seed-dir", required=True, help="Directory containing PFxxxxx/PFxxxxx.hhm and PFxxxxx.fas/.sto.")
     p.add_argument("--pfam-structure-dir", required=True, help="Directory containing PFxxxxx/<UID>_exp_<PDB>_<CHAIN>.pdb files.")
-    p.add_argument("--three-did-flat", required=True, help="Path to 3did_flat.gz or uncompressed 3did_flat.")
+    p.add_argument("--three-did-flat", default=None, help="Path to 3did_flat.gz or uncompressed 3did_flat.")
+    p.add_argument("--complex-tsv", default=None, help="Optional normalized complex-interface TSV/CSV. Can be used instead of or together with --three-did-flat.")
     p.add_argument("--output-csv", required=True, help="Output row-level CSV with Main_* and Sub_* annotations.")
     p.add_argument("--output-side-csv", default=None, help="Optional side-level output CSV. Default: output basename + .side_level.csv")
     p.add_argument("--output-summary", default=None, help="Optional text summary. Default: output basename + .summary.txt")
+    p.add_argument("--output-threshold-csv", default=None, help="Threshold-sensitivity CSV. Default: output basename + .threshold_sensitivity.csv")
+    p.add_argument("--output-continuous-csv", default=None, help="Continuous Real-vs-Random comparison CSV. Default: output basename + .continuous_random_comparison.csv")
 
     p.add_argument("--min-seq-ratio", type=float, default=0.80, help="Minimum realized FASTA fragment length / HMM segment length. Default: 0.80")
     p.add_argument("--max-seq-ratio", type=float, default=1.20, help="Maximum realized FASTA fragment length / HMM segment length. Default: 1.20")
@@ -1287,6 +1677,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--random-max-attempts-per-sample", type=int, default=50, help="Maximum random-window attempts per requested valid sample. Default: 50")
     p.add_argument("--th-major", type=float, default=0.50, help="InterfaceMajor threshold on interface_fraction. Default: 0.50")
     p.add_argument("--th-partial", type=float, default=0.30, help="InterfacePartial threshold on interface_fraction. Default: 0.30")
+    p.add_argument("--sensitivity-thresholds", default="0.10,0.20,0.30,0.40,0.50", help="Comma-separated interface-fraction thresholds for Real-vs-Random sensitivity analysis. The partial and major cutoffs are always included.")
+    p.add_argument("--confidence-level", type=float, default=0.95, help="Confidence level for proportion and paired-difference intervals. Default: 0.95")
+    p.add_argument("--exclude-same-pfam-pairs", action="store_true", help="For 3did input, skip instances where the two interacting Pfam IDs are identical. This is a conservative proxy for excluding homomeric same-domain contacts.")
     p.add_argument("--workers", type=int, default=1, help="Number of worker processes. Default: 1")
     p.add_argument("--limit", type=int, default=0, help="Debug only: process first N rows.")
     return p.parse_args()
@@ -1294,26 +1687,34 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    if not args.three_did_flat and not args.complex_tsv:
+        raise SystemExit("ERROR: provide --three-did-flat and/or --complex-tsv.")
+
     if args.min_seq_ratio <= 0 or args.max_seq_ratio <= 0 or args.min_seq_ratio > args.max_seq_ratio:
         raise SystemExit("ERROR: invalid --min-seq-ratio / --max-seq-ratio.")
-    if not 0 < args.min_struct_coverage <= 1:
-        raise SystemExit("ERROR: --min-struct-coverage must be in (0, 1].")
-    if not 0 <= args.th_partial <= args.th_major <= 1:
+    if not (0.0 <= args.th_partial <= args.th_major <= 1.0):
         raise SystemExit("ERROR: require 0 <= --th-partial <= --th-major <= 1.")
-    if args.random_n < 0 or args.random_max_attempts_per_sample < 1:
-        raise SystemExit("ERROR: invalid random-control settings.")
-    if args.workers < 1 or args.max_search_depth < 1 or args.limit < 0:
-        raise SystemExit("ERROR: workers and search depth must be positive; limit cannot be negative.")
-    for label, path in [
-        ("input CSV", args.input_csv),
-        ("Pfam seed directory", args.pfam_seed_dir),
-        ("Pfam structure directory", args.pfam_structure_dir),
-        ("3did flat file", args.three_did_flat),
-    ]:
-        if not os.path.exists(path):
-            raise SystemExit(f"ERROR: {label} not found: {path}")
+    if not (0.0 < args.confidence_level < 1.0):
+        raise SystemExit("ERROR: --confidence-level must be between 0 and 1.")
+    if args.random_n < 0:
+        raise SystemExit("ERROR: --random-n must be >= 0.")
+    try:
+        args.analysis_thresholds = parse_sensitivity_thresholds(
+            list(parse_sensitivity_thresholds(args.sensitivity_thresholds))
+            + [args.th_partial, args.th_major]
+        )
+    except ValueError as exc:
+        raise SystemExit(f"ERROR: {exc}") from exc
 
-    complex_index, complex_by_pfam, complex_meta = parse_3did_flat(args.three_did_flat)
+    index_items = []
+    if args.three_did_flat:
+        index_items.append(parse_3did_flat(args.three_did_flat, exclude_same_pfam_pairs=args.exclude_same_pfam_pairs))
+    if args.complex_tsv:
+        index_items.append(parse_complex_tsv(args.complex_tsv))
+    complex_index, complex_by_pfam, complex_meta = merge_complex_indices(index_items)
+    # Initialize the parent as well as worker processes so reporting uses the
+    # same thresholds and configuration under both single- and multi-process runs.
+    worker_init(args, complex_index, complex_by_pfam, complex_meta)
 
     eprint(f"[complex] final indexed PDB-chain sides: {len(complex_index):,}")
     eprint(f"[complex] final Pfam count: {len(complex_by_pfam):,}")
@@ -1327,7 +1728,6 @@ def main() -> None:
     records = [(i, row.to_dict()) for i, row in df.iterrows()]
 
     if args.workers <= 1:
-        worker_init(args, complex_index, complex_by_pfam, complex_meta)
         out_rows = [process_row(x) for x in tqdm(records, desc="Annotating")]
     else:
         out_rows = []
@@ -1349,19 +1749,27 @@ def main() -> None:
     side_csv = args.output_side_csv
     if side_csv is None:
         side_csv = re.sub(r"\.csv$", "", args.output_csv) + ".side_level.csv"
-    side_dir = os.path.dirname(os.path.abspath(side_csv))
-    if side_dir:
-        os.makedirs(side_dir, exist_ok=True)
-    write_side_level_file(out_df, side_csv)
+    side_df = write_side_level_file(out_df, side_csv)
     eprint(f"[output] side-level CSV written: {side_csv}")
+
+    threshold_df = calculate_threshold_sensitivity(side_df, args.confidence_level)
+    threshold_csv = args.output_threshold_csv
+    if threshold_csv is None:
+        threshold_csv = re.sub(r"\.csv$", "", args.output_csv) + ".threshold_sensitivity.csv"
+    threshold_df.to_csv(threshold_csv, index=False)
+    eprint(f"[output] threshold-sensitivity CSV written: {threshold_csv}")
+
+    continuous_df = calculate_continuous_random_comparison(side_df, args.confidence_level)
+    continuous_csv = args.output_continuous_csv
+    if continuous_csv is None:
+        continuous_csv = re.sub(r"\.csv$", "", args.output_csv) + ".continuous_random_comparison.csv"
+    continuous_df.to_csv(continuous_csv, index=False)
+    eprint(f"[output] continuous random-comparison CSV written: {continuous_csv}")
 
     summary_path = args.output_summary
     if summary_path is None:
         summary_path = re.sub(r"\.csv$", "", args.output_csv) + ".summary.txt"
-    summary_dir = os.path.dirname(os.path.abspath(summary_path))
-    if summary_dir:
-        os.makedirs(summary_dir, exist_ok=True)
-    write_summary(out_df, summary_path)
+    write_summary(out_df, summary_path, side_df, threshold_df, continuous_df)
     eprint(f"[output] summary written: {summary_path}")
 
 

@@ -20,6 +20,10 @@ mkdir -p "$OUT_DIR"
   --max-seq-ratio 1.2 \
   --min-struct-coverage 0.8 \
   --max-search-depth 200 \
+  --th-partial "${INTERFACE_PARTIAL_THRESHOLD:-0.30}" \
+  --th-major "${INTERFACE_MAJOR_THRESHOLD:-0.50}" \
+  --sensitivity-thresholds "${SENSITIVITY_THRESHOLDS:-0.10,0.20,0.30,0.40,0.50}" \
+  --confidence-level "${CONFIDENCE_LEVEL:-0.95}" \
   --random-n "${RANDOM_SAMPLES:-200}" \
   --random-seed "${RANDOM_SEED:-20260601}" \
   --workers "${WORKERS:-20}"

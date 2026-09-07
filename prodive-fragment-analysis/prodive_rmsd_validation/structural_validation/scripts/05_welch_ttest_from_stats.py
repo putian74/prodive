@@ -23,7 +23,7 @@ def find_type(df: pd.DataFrame, pattern: str) -> str:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Compute Welch's t-test by aligned length from summary statistics.")
-    parser.add_argument("--stats-csv", type=Path, required=True, help="Summary CSV produced by 10_compare_real_random_core.py.")
+    parser.add_argument("--stats-csv", type=Path, required=True, help="Summary CSV produced by 04_compare_real_random_core.py.")
     parser.add_argument("--output-csv", type=Path, required=True, help="Output CSV for Welch's t-test results.")
     parser.add_argument("--real-pattern", default="Real", help="Substring identifying the real group in the Type column.")
     parser.add_argument("--random-pattern", default="Random", help="Substring identifying the random group in the Type column.")

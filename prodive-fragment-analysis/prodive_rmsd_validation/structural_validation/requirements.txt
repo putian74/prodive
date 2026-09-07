@@ -2,5 +2,7 @@ pandas
 numpy
 tqdm
 biopython
-# PyMOL is required but is usually installed from conda, not pip:
-# conda install -c conda-forge pymol-open-source
+scipy
+matplotlib
+seaborn
+# Install PyMOL separately: conda install -c conda-forge pymol-open-source

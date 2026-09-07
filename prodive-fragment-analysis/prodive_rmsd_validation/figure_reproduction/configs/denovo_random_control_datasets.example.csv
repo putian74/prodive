@@ -1,0 +1,2 @@
+analysis_key,real_csv,random_csv,output_stats_csv,output_plot,ttest_csv,real_label,random_label,plot_title
+denovo_pfam,data/rmsd_inputs/denovo_vs_pfam_rmsd_results_with_coverage.csv,data/random_control_inputs/random_pfam_vs_denovo_10k_coverage80.csv,random_controls/denovo_pfam_real_random_core_summary.csv,random_controls/denovo_pfam_real_vs_random.png,random_controls/denovo_pfam_welch_ttest.csv,Real signal,Random noise,Core region comparison: de novo-Pfam real vs. random

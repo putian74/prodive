@@ -3,8 +3,7 @@
 
 The script filters real and random RMSD tables to a compact core region, writes a
 summary table by aligned length and group, and optionally produces a boxplot.
-It is suitable for both ProDive-only Pfam-Pfam validation and de novo-Pfam
-validation when paired with the corresponding random-control CSV.
+Use the de novo-Pfam RMSD table and its corresponding random-control CSV.
 """
 
 from __future__ import annotations

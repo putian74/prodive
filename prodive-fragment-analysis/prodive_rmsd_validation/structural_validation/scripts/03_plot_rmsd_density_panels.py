@@ -1,21 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Draw Fig. 2-style RMSD density panels from already-computed RMSD CSV files.
+"""Plot de novo-Pfam RMSD against aligned length from configured result CSVs.
 
-The script reads a dataset configuration CSV rather than hard-coding local paths.
-Each dataset is drawn as an independent PNG. It supports the 0-30 panels used in
-Fig. 2 and the 0-100 full-range panels used for supplementary HHsearch-boundary
-visualization.
-
-Required input CSV columns per RMSD table:
-  - RMSD
-  - Aligned_Atoms
-  - one of: Coverage, Target_Len, HMM_Len, HMM_Len_A+HMM_Len_B
-
-Dataset config columns:
-  key,path,file_stem,xlim_min,xlim_max,ylim_min,ylim_max,show_rmsd_lines,
-  show_core_box,show_band_percentages,show_broad_count,title
+Filters by coverage and RMSD, annotates core-region and RMSD-band proportions,
+and writes separate density panels for the configured de novo datasets.
 """
 
 from __future__ import annotations
@@ -247,7 +235,7 @@ def draw_one(result: Dict[str, Any], norm: Optional[Normalize], ticks: Optional[
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Draw Fig. 2-style RMSD density panels from RMSD CSV files.")
-    p.add_argument("--dataset-config", required=True, help="CSV specifying datasets and plot options")
+    p.add_argument("--dataset-config", required=True, help="CSV specifying de novo datasets and plot options")
     p.add_argument("--output-dir", required=True)
     p.add_argument("--coverage-threshold", type=float, default=0.8)
     p.add_argument("--rmsd-core-limit", type=float, default=1.0)

@@ -39,8 +39,7 @@ import pandas as pd
 from Bio import PDB, SeqIO
 from tqdm import tqdm
 
-import pymol
-from pymol import cmd
+cmd = None  # Initialized when RMSD calculation starts.
 
 
 AA_UID_RE = re.compile(r"([OPQ][0-9][A-Z0-9]{3}[0-9]|[A-NR-Z][0-9]([A-Z][A-Z0-9]{2}[0-9]){1,2})")
@@ -350,6 +349,13 @@ def find_denovo_pdb(denovo_pdb_dir: str, q_id: str) -> str:
 
 
 def process_tasks(args: argparse.Namespace) -> int:
+    global cmd
+    try:
+        import pymol
+        from pymol import cmd as pymol_cmd
+    except ImportError as exc:
+        raise RuntimeError("PyMOL is required for RMSD calculation; install pymol-open-source in the active environment.") from exc
+    cmd = pymol_cmd
     chain_map = build_id_to_chain_mapping(args.fasta_mapping_file)
     tasks = read_tasks(args.input_csv, args.segment_mode)
     if not tasks:

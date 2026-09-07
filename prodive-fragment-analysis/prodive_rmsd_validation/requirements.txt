@@ -5,5 +5,4 @@ biopython
 scipy
 matplotlib
 seaborn
-# PyMOL is required for RMSD scripts but is usually installed with conda:
-# conda install -c conda-forge pymol-open-source
+# Install PyMOL separately: conda install -c conda-forge pymol-open-source

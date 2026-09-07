@@ -8,12 +8,14 @@ This repository contains downstream workflows for analyzing ProDive Pfam–Pfam 
 | Directory | Function |
 |---|---|
 | `prodive_clustering/` | Construct weighted fragment graphs, run CPM-Leiden clustering, and scan the resolution parameter. |
-| `prodive_rmsd_validation/` | Parse HHsearch results, build comparison classes, calculate Pfam–Pfam and de novo–Pfam RMSD, generate random controls, and reproduce validation figures. |
+| `prodive_rmsd_validation/` | Calculate de novo–Pfam RMSD, generate length-stratified random controls, and plot validation results. |
 | `prodive_esm2/` | Calculate residue-level ESM2 entropy and compare fragment positions with MSA-filtered background positions. |
 | `prodive_secondary_structure_rsa/` | Annotate secondary structure and relative solvent accessibility for Pfam–Pfam and de novo–Pfam fragments. |
-| `prodive_3did_interface/` | Map Pfam–Pfam fragments to 3did interface residues and generate same-chain random controls. |
+| `prodive_3did_interface/` | Map Pfam–Pfam fragments to 3did interface residues and generate matched seed-domain random controls and threshold-sensitivity statistics. |
 | `prodive_disorder_overlap/` | Map DisProt regions, run matched randomization, and plot observed-versus-random overlap. |
 | `prodive_phi_value/` | Map phi-value systems to Pfam seed coordinates and compare real fragments with matched random fragments. |
+| `prodive_start2fold_hdx/` | Map Start2Fold folding and stability annotations to fragments and compare overlap with matched random windows. |
+| `prodive_contact_order/` | Calculate fragment contact order and rFCO, compare matched random windows, and inspect high-rFCO cases. |
 
 Each module provides analysis scripts, usage documentation or run templates, and a module-specific `requirements.txt`. All Python entry scripts support `--help`.
 
@@ -29,6 +31,8 @@ python3 -m pip install -r prodive_esm2/requirements.txt
 python3 -m pip install -r prodive_phi_value/requirements.txt
 python3 -m pip install -r prodive_rmsd_validation/requirements.txt
 python3 -m pip install -r prodive_secondary_structure_rsa/requirements.txt
+python3 -m pip install -r prodive_start2fold_hdx/requirements.txt
+python3 -m pip install -r prodive_contact_order/requirements.txt
 ```
 
 Additional runtime requirements are:
@@ -38,7 +42,8 @@ Additional runtime requirements are:
 | RMSD calculation | PyMOL |
 | Secondary structure and RSA | DSSP or `mkdssp` |
 | ESM2 inference | Local Transformers checkpoint for `facebook/esm2_t36_3B_UR50D` |
-| Phi-value SIFTS mapping | PDBe API access or a populated local API cache |
+| Phi-value and contact-order SIFTS mapping | PDBe API access or a populated local API cache |
+| Start2Fold | Local XML records; network access is needed only for optional downloads |
 
 ## Data setup
 
@@ -55,32 +60,27 @@ export PFAM_STRUCTURE_ROOT="$PRODIVE_STRUCTURE_ROOT"
 export PRODIVE_PFAM_RUNTIME_ROOT=/path/to/PfamA_seed_runtime
 ```
 
-The archive layout used by the run templates is:
+The run templates expect the following local input layout; supply the Start2Fold XML records separately if they are absent from your data archive:
 
-```text
-$PRODIVE_DATA_ROOT/
-├── 3did/3did_flat.gz
-├── disorder_overlap/DisProt_current_IDPO.tsv
-├── esm2/
-├── parameter_sensitivity/
-├── phi_value/
-│   ├── Final_2Sm.csv
-│   └── phi_sites_plot_preserved_long.csv
-├── rmsd/
-└── shared/
-    ├── global_high_score_summary_fin.csv
-    ├── denovo_global_high_score_summary_fin.csv
-    ├── score_percentile_subsets/
-    ├── PfamA_seed/
-    └── structures/denovo_structures/
-```
+| Resource | Path relative to `$PRODIVE_DATA_ROOT` |
+|---|---|
+| Pfam-Pfam result CSV | `shared/global_high_score_summary_fin.csv` |
+| De novo-Pfam result CSV | `shared/denovo_global_high_score_summary_fin.csv` |
+| Score subsets | `shared/score_percentile_subsets/` |
+| Pfam profiles and alignments | `shared/PfamA_seed/` |
+| De novo structures and FASTA | `shared/structures/denovo_structures/` |
+| 3did interface records | `3did/3did_flat.gz` |
+| DisProt annotations | `disorder_overlap/DisProt_current_IDPO.tsv` |
+| ESM2 inputs | `esm2/` |
+| Phi-value inputs | `phi_value/Final_2Sm.csv`, `phi_value/phi_sites_plot_preserved_long.csv` |
+| Start2Fold XML | `start2fold_hdx/start2fold_xml/` |
 
 ### Pfam structure paths
 
 `$PRODIVE_DATA_ROOT/shared/PfamA_seed/` contains HHM and alignment files. The reconstructed `$PRODIVE_STRUCTURE_ROOT/` contains experimental and AlphaFold structures. Reconstruction commands and the expected family-level layout are documented in `PfamA_seed_structure/README.md` in the structure-manifest package.
 
 - The 3did script accepts the seed and structure roots separately.
-- RMSD and Pfam SS/RSA scripts expect HHM/alignment and structure files in the same family-level `--pfam-dir`. Use `$PRODIVE_PFAM_RUNTIME_ROOT` for these options after creating a merged runtime view.
+- RMSD, contact-order, and Pfam SS/RSA scripts expect HHM/alignment and structure files in the same family-level `--pfam-dir`. Use `$PRODIVE_PFAM_RUNTIME_ROOT` for these options after creating a merged runtime view.
 - The RMSD structural-validation template requires `$PRODIVE_PFAM_RUNTIME_ROOT`. The Pfam SS/RSA template should be adapted to use the same runtime root when the archives are stored separately.
 
 ## Code-to-data mapping
@@ -88,12 +88,19 @@ $PRODIVE_DATA_ROOT/
 | Module | Main inputs | Released results |
 |---|---|---|
 | Clustering | `data/shared/score_percentile_subsets/`; an SS/RSA table is required only for the optional structural summary | `precomputed_results/clustering/` |
-| RMSD validation | `data/shared/` and Pfam structures; supporting HHsearch and control resources are under `data/rmsd/` | `precomputed_results/rmsd/` |
+| RMSD validation | `data/shared/denovo_global_high_score_summary_fin.csv`, de novo PDBs/FASTA, and the merged Pfam runtime directory | `precomputed_results/rmsd/` |
 | ESM2 entropy | `data/shared/PfamA_seed/` and `data/esm2/` | `precomputed_results/esm2/` |
 | Secondary structure/RSA | `data/shared/` and Pfam structures | `precomputed_results/secondary_structure_rsa/` |
 | 3did interface | `data/3did/`, `data/shared/PfamA_seed/`, and experimental Pfam structures | `precomputed_results/interface_analysis/` |
 | DisProt overlap | `data/disorder_overlap/` and `data/shared/` | `precomputed_results/disorder_overlap/` |
 | Phi-value overlap | `data/phi_value/` and `data/shared/` | `precomputed_results/phi_value/` |
+
+Additional module inputs and new output locations:
+
+| Module | Main inputs | New outputs |
+|---|---|---|
+| Start2Fold/HDX | `data/start2fold_hdx/start2fold_xml/` and `data/shared/` | `$PRODIVE_WORK_ROOT/start2fold_hdx/` |
+| Contact order | Pfam-Pfam result CSV, merged Pfam runtime, and optional SIFTS cache | `$PRODIVE_WORK_ROOT/contact_order/` |
 
 ## Leiden clustering
 
@@ -149,31 +156,22 @@ done
 
 Override the tested gamma values with `GAMMAS="0.02 0.05 0.08 0.10"`.
 
-## RMSD validation and HHsearch comparison
+## De novo-Pfam RMSD validation
 
-| Component | Function | Main output |
-|---|---|---|
-| `hhsearch_comparison/` | Parse `.hhr` files, build score subsets, compare unordered family pairs, and generate ProDive-only, shared, and HHsearch-only task classes. | HHsearch 20%/70% tables, overlap tables, and task tables. |
-| `structural_validation/` | Calculate RMSD using ProDive or HHsearch boundaries, calculate de novo–Pfam RMSD, filter the 70% subset, and generate matched random controls. | RMSD and random-control tables. |
-| `figure_reproduction/` | Generate density panels, real-versus-random summaries, boxplots, and Welch tests from RMSD tables. | Figure and statistics files. |
-
-Run HHsearch preprocessing before structural validation:
+The RMSD module contains five scripts: observed de novo-Pfam RMSD, random de novo-Pfam controls, density plotting, real-versus-random comparison, and Welch tests. The calculation starts directly from the de novo ProDive result CSV and local structures.
 
 ```bash
-bash prodive_rmsd_validation/hhsearch_comparison/run_hhsearch_preprocessing.sh
 bash prodive_rmsd_validation/structural_validation/run_structural_validation.sh
 ```
 
-The second command requires `$PRODIVE_PFAM_RUNTIME_ROOT`. Figure generation uses configuration CSVs:
+To include random controls and comparison statistics:
 
 ```bash
-python3 prodive_rmsd_validation/figure_reproduction/scripts/run_figure_reproduction.py \
-  --fig2-config /path/to/fig2_datasets.csv \
-  --random-config /path/to/random_control_datasets.csv \
-  --output-dir /path/to/figures
+RUN_RANDOM_CONTROLS=1 RUN_COMPARISON=1 WORKERS=20 \
+  bash prodive_rmsd_validation/structural_validation/run_structural_validation.sh
 ```
 
-Module-level READMEs document individual scripts and outputs. Released intermediate task tables and final results are under `data/rmsd/` and `precomputed_results/rmsd/`.
+The default command runs only the observed calculation. Both commands require `PRODIVE_PFAM_RUNTIME_ROOT`; all inputs and optional settings are listed in [prodive_rmsd_validation/README.md](prodive_rmsd_validation/README.md). See the [figure README](prodive_rmsd_validation/figure_reproduction/README.md) to plot completed de novo results.
 
 ## ESM2 entropy
 
@@ -242,22 +240,15 @@ bash prodive_secondary_structure_rsa/run_templates/run_denovo_secondary_structur
 
 ## 3did interface overlap
 
-`01_map_fragments_to_3did_interfaces.py` parses `3did_flat.gz`, maps each fragment side through HMM, seed-alignment, and experimental PDB coordinates, classifies interface overlap, and generates same-chain, same-length random windows. It writes a row-level CSV, a fragment-side CSV, and a text summary.
+The revised workflow maps fragments through HHM, seed, and experimental PDB coordinates. Real and matched same-seed-domain random windows use the same union across experimental structures; random sampling excludes the observed window.
 
 ```bash
 bash prodive_3did_interface/run_templates/run_3did_interface_analysis.sh
 ```
 
-The template uses:
+The template uses sequence/HMM length ratio 0.8–1.2, minimum structure coverage 0.8, search depth 200, and 200 random samples per assessable side. Interface categories retain cutoffs 0.30 and 0.50. Additional comparisons evaluate thresholds 0.10, 0.20, 0.30, 0.40, and 0.50 and continuous real-minus-random differences, with confidence intervals accounting for the two sides of each input row.
 
-```text
-FASTA/HMM length ratio       0.8–1.2
-minimum structure coverage  0.8
-maximum search depth        200
-random windows per side     200
-```
-
-Interface classes are `NonInterface` for overlap below `0.3`, `InterfacePartial` for overlap from `0.3` to below `0.5`, and `InterfaceMajor` for overlap of at least `0.5`. Override randomization with `RANDOM_SAMPLES`, `RANDOM_SEED`, and `WORKERS`.
+Outputs include the row-level CSV, side-level CSV, text summary, threshold-sensitivity CSV, and continuous-comparison CSV. See [prodive_3did_interface/README.md](prodive_3did_interface/README.md) for filenames, interaction flags, and parameter overrides.
 
 ## DisProt overlap
 
@@ -290,6 +281,29 @@ bash prodive_phi_value/run_templates/run_phi_value_pipeline.sh
 The randomization defaults to 10,000 iterations, seed `20260709`, and high-phi threshold `0.5`. Override these with `RANDOM_ITERATIONS`, `RANDOM_SEED`, and `HIGH_PHI_THRESHOLD`. Set `PHI_LONG_CSV` to override the default long-format phi table.
 
 Step 1 caches PDBe/SIFTS responses under its output directory. The released cache is available under `precomputed_results/phi_value/pfam_seed_sifts_output_2sm_dual/sifts_api_cache/`.
+
+## Start2Fold and HDX overlap
+
+Parse Start2Fold XML records, match annotated proteins to Pfam seed sequences, map ProDive fragments, and compare annotated-residue overlap with matched random windows. The template interprets residue indices as UniProt coordinates, requests 1,000 random windows per segment, and uses a count threshold of two annotated residues for multitype summaries.
+
+```bash
+bash prodive_start2fold_hdx/run_templates/run_start2fold_hdx_pipeline.sh
+```
+
+The workflow writes parsed annotations, seed matches, real/random overlap tables, multitype summaries, overview plots, selected interval plots, and a combination bubble plot under `$PRODIVE_WORK_ROOT/start2fold_hdx/`. XML download is optional. See [prodive_start2fold_hdx/README.md](prodive_start2fold_hdx/README.md) for scripts and inputs.
+
+## Contact order
+
+Calculate fragment contact order and relative fragment contact order (rFCO), compare same-chain/same-length random controls, and inspect the high-rFCO tail.
+
+```bash
+bash prodive_contact_order/run_templates/run_full_contact_order_pipeline.sh
+bash prodive_contact_order/run_templates/run_high_rfco_followup.sh
+```
+
+The main template requires `PRODIVE_PFAM_RUNTIME_ROOT`, uses an 8-angstrom contact cutoff and 1,000 random samples, and writes results under `$PRODIVE_WORK_ROOT/contact_order/`. It keeps realized-sequence/HMM length ratios from 0.8 to 1.2. Set `CONTACT_ORDER_CACHE` to reuse an existing cache; otherwise a cache is created under the output directory.
+
+The follow-up generates high-rFCO selections, contact-topology figures, removal-sensitivity tables, and ProDive score annotations. See [prodive_contact_order/README.md](prodive_contact_order/README.md) for the six scripts and their outputs.
 
 ## Released results
 
