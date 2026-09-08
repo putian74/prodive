@@ -18,7 +18,7 @@ The input resources and precomputed results for the two workflows are available 
 | Workflow | Code directory | Data record |
 | --- | --- | --- |
 | ProDive method and validation | [`prodive/`](prodive/) | [10.5281/zenodo.22009469](https://doi.org/10.5281/zenodo.22009469) |
-| Fragment-level analyses | [`prodive-fragment-analysis/`](prodive-fragment-analysis/) | [10.5281/zenodo.21932666](https://doi.org/10.5281/zenodo.21932666) |
+| Fragment-level analyses | [`prodive-fragment-analysis/`](prodive-fragment-analysis/) | [10.5281/zenodo.22643519](https://doi.org/10.5281/zenodo.22643519) |
 
 Download the data record corresponding to the workflow that you intend to run. The detailed directory layout and required environment variables are documented in the relevant code directory.
 
